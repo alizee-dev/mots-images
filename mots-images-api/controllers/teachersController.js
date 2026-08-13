@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
 const {createTeacher, findTeacher} = require('../models/teacherModel')
 
 const register = async (req, res) => {
@@ -24,8 +25,11 @@ const login = async (req, res) => {
             return
         }
 
-        if(await bcrypt.compare(password, teacher.password_hash)) {
-            res.status(200).json("Utilisateur connecté")
+        if (await bcrypt.compare(password, teacher.password_hash)) {
+            const token = jwt.sign(
+            {teacherId: teacher.id}, process.env.JWT_SECRET, { expiresIn: "24h"}
+        )
+            res.status(200).json({message : "Utilisateur connecté", token})
         } else {
             res.status(401).json("Email ou mot de passe incorrect")
         }
