@@ -1,6 +1,8 @@
 const express = require('express')
 const teachersRoutes = require('./routes/teachers')
 const studentsRoutes = require('./routes/students')
+const wordsRoutes = require('./routes/words')
+const { createWordController } = require('./controllers/wordsController')
 
 const PORT = 3000
 
@@ -10,6 +12,7 @@ app.use(express.json())
 // Register & Login
 app.use('/teachers', teachersRoutes)
 app.use('/students', studentsRoutes)
+app.use('/words', wordsRoutes)
 
 
 
