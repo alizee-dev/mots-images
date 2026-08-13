@@ -7,4 +7,11 @@ const createTeacher = async (name, email, hashedPassword) => {
     return result.rows[0]
 }
 
-module.exports = {createTeacher}
+const findTeacher = async (email) => {
+    const result = await pool.query(
+        'SELECT id, password_hash FROM teachers WHERE email = $1', [email]
+    )
+    return result.rows[0]
+}
+
+module.exports = {createTeacher, findTeacher}
