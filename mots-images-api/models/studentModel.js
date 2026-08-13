@@ -11,4 +11,17 @@ const getStudentsByTeacher = async (teacherId) => {
     return result.rows
 }
 
-module.exports = {getStudentsByTeacher}
+const createStudent = async (name, teacherId) => {
+    const result = await pool.query(
+        `INSERT INTO students (name) VALUES ($1) RETURNING id, name`, [name]
+    ) 
+    const student = result.rows[0]
+
+    await pool.query(
+        `INSERT INTO teachers_students (student_id, teacher_id) VALUES ($1, $2)`, [student.id, teacherId]
+    )
+
+    return student
+}
+
+module.exports = {getStudentsByTeacher, createStudent}
