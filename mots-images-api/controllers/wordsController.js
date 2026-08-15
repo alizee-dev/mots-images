@@ -30,19 +30,26 @@ const getWordsController = async (req, res) => {
 }
 
 const postWordForStudentsController = async (req, res) => {
-    try {
-        const wordId = req.params.wordId
-        const {studentIds} = req.body
-        //{ "studentIds": [3, 7, 12] }
+    const wordId = req.params.wordId
+    const {studentIds} = req.body
+    const teacherId = req.teacherId
+    //{ "studentIds": [3, 7, 12] }
 
+    const words = await getWords(teacherId)
+
+    if (words.find(word => word.id === Number(wordId))) {
+        try {
         const result = await wordForStudents(wordId, studentIds)
 
         console.log(result)
         res.status(201).json(result)
 
-    } catch (error) {
-        res.status(500).json(error.message)
-    }
+        } catch (error) {
+            res.status(500).json(error.message)
+        }
+    } else {
+        res.status(403).json('Forbidden')
+    }    
 }
 
 module.exports = { createWordController, getWordsController, postWordForStudentsController}

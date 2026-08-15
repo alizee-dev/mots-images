@@ -1,5 +1,4 @@
 const { createSeries, linkWordsToSeries, seriesByTeacher } = require('../models/seriesModel')
-
 const createSeriesController = async (req, res) => {
     try {
     const teacherId = req.teacherId
@@ -17,16 +16,26 @@ const createSeriesController = async (req, res) => {
 }
 
 const linkWordsToSeriesController = async (req, res) => {
-    try {
-        const seriesId = req.params.seriesId
-        const {wordsIds} = req.body
+    const teacherId = req.teacherId
+    const seriesId = req.params.seriesId
+    const {wordsIds} = req.body
+
+    const series = await seriesByTeacher(teacherId)
+    
+    if (series.find(series => series.id === Number(seriesId))) {
+        try {
+        
         const association = await linkWordsToSeries(seriesId, wordsIds)
         console.log(association);
         
         res.status(201).json(association)
-    } catch (error) {
-        res.status(500).json(error.message)
+        } catch (error) {
+            res.status(500).json(error.message)
+        }
+    } else {
+        res.status(403).json('Forbidden')
     }
+    
 }
 
 const seriesByTeacherController = async (req, res) => {
