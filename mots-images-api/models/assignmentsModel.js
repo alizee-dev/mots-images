@@ -21,7 +21,7 @@ const assignmentsByTeacher = async (teacherId) => {
         WHERE s.teacher_id = $1
         `, [teacherId])
     
-        log(result.rows)
+        console.log(result.rows)
         return result.rows
 }
 

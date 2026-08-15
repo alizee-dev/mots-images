@@ -55,6 +55,7 @@ const postWordForStudentsController = async (req, res) => {
 const updateWordController = async (req, res) => {
     const wordId = req.params.wordId
     const { zones, sentence } = req.body
+    const zonesString = JSON.stringify(zones)
     const teacherId = req.teacherId
 
     const words = await getWords(teacherId)
@@ -62,7 +63,7 @@ const updateWordController = async (req, res) => {
 
     if(wordIsValid) {
         try {
-            const response = await updateWord(wordId, zones, sentence, teacherId)
+            const response = await updateWord(wordId, zonesString, sentence, teacherId)
             if (!response) {
                 return res.status(404).json('Word not found')
             }

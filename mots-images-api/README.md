@@ -154,7 +154,7 @@ Returns (201): `{ id, name }`
 
 **GET /students/:studentId/test-sessions**
 Returns the test session history for a specific student — series title, date, and total score for each completed session.
-Returns (200): `[{ title, series_id, taken_at, total_score }, ...]`
+Returns (200): `[{ id, title, series_id, taken_at, total_score }, ...]`
 Returns (403) if the student doesn't belong to the authenticated teacher.
 
 ### Words

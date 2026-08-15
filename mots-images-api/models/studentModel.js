@@ -26,7 +26,7 @@ const createStudent = async (name, teacherId) => {
 
 const testSessionsByStudent = async (studentId) => {
     const result = await pool.query(
-        `SELECT s.title, a.series_id, ts.taken_at, ts.total_score 
+        `SELECT ts.id, s.title, a.series_id, ts.taken_at, ts.total_score 
         FROM assignments a
         JOIN test_sessions ts ON a.id = ts.assignment_id 
         JOIN series s ON s.id = a.series_id
