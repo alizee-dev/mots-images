@@ -1,5 +1,5 @@
 
-const {getStudentsByTeacher, createStudent : createStudentInDb} = require('../models/studentModel')
+const {getStudentsByTeacher, createStudent : createStudentInDb, testSessionsByStudent} = require('../models/studentModel')
 
 const getAllStudents = async (req, res) => {
     const teacher = req.teacherId
@@ -20,10 +20,28 @@ const createStudent = async (req, res) => {
 
     try {
         const response = await createStudentInDb(name, teacher)
-        res.status(201).json({ message : 'Élève créé avec succès', student : response})
+        res.status(201).json(response)
     } catch(error) {
         res.status(500).json(error.message)
     }
 }
 
-module.exports = { getAllStudents, createStudent }
+const getTestSessionsByStudent = async (req, res) => {
+    const studentId = req.params.studentId
+    const teacherId = req.teacherId
+
+    const studentsOfTeacher = await getStudentsByTeacher(teacherId)
+    
+    if (studentsOfTeacher.find(student => student.id === Number(studentId))) {
+        try {
+            const response = await testSessionsByStudent(studentId)
+            res.status(200).json(response)
+        } catch (error) {
+            res.status(500).json(error.message)
+        }
+    } else {
+        res.status(403).json('Forbidden')
+    }
+}
+
+module.exports = { getAllStudents, createStudent, getTestSessionsByStudent}
