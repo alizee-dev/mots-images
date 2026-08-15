@@ -35,4 +35,15 @@ const wordForStudents = async (wordId, studentsId) => {
     return pairs
 }
 
-module.exports = { createWord, getWords, wordForStudents }
+const updateWord = async (wordId, zones, sentence, teacherId) => {
+    const result = await pool.query(`
+        UPDATE words
+        SET sentence = $1, zones = $2
+        WHERE id = $3 AND teacher_id = $4
+        RETURNING id, text, sentence, zones`, [sentence, zones, wordId, teacherId ])
+    
+    console.log(result.rows);
+    return result.rows[0]
+}
+
+module.exports = { createWord, getWords, wordForStudents, updateWord }

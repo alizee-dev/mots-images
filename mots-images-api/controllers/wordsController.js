@@ -1,4 +1,4 @@
-const { createWord, getWords, wordForStudents } = require('../models/wordModel')
+const { createWord, getWords, wordForStudents, updateWord } = require('../models/wordModel')
 
 const createWordController = async (req, res) => {
     try {
@@ -52,4 +52,27 @@ const postWordForStudentsController = async (req, res) => {
     }    
 }
 
-module.exports = { createWordController, getWordsController, postWordForStudentsController}
+const updateWordController = async (req, res) => {
+    const wordId = req.params.wordId
+    const { zones, sentence } = req.body
+    const teacherId = req.teacherId
+
+    const words = await getWords(teacherId)
+    const wordIsValid = words.find(word => word.id === Number(wordId))
+
+    if(wordIsValid) {
+        try {
+            const response = await updateWord(wordId, zones, sentence, teacherId)
+            if (!response) {
+                return res.status(404).json('Word not found')
+            }
+            res.status(200).json(response)
+        } catch (error) {
+            res.status(500).json(error.message)
+        }        
+    } else {
+        res.status(403).json("Forbidden")
+    }
+}
+
+module.exports = { createWordController, getWordsController, postWordForStudentsController, updateWordController}
