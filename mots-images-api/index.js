@@ -1,4 +1,5 @@
 const express = require('express')
+const cors = require('cors')
 const teachersRoutes = require('./routes/teachers')
 const studentsRoutes = require('./routes/students')
 const wordsRoutes = require('./routes/words')
@@ -9,6 +10,7 @@ const testSessionRoutes = require('./routes/test_sessions')
 const PORT = 3000
 
 const app = express()
+app.use(cors())
 app.use(express.json())
 
 // Register & Login
