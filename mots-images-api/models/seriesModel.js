@@ -39,7 +39,7 @@ const seriesByTeacher = async (teacherId) => {
 
 const getSeriesDetail = async (seriesId, teacherId) => {
     const result = await pool.query(`
-        SELECT w.text, w.sentence, sw."order", s.title
+        SELECT w.id, w.text, w.sentence, w.zones, sw."order", s.title
         FROM series s
         JOIN series_words sw ON s.id = sw.series_id
         JOIN words w ON w.id = sw.word_id

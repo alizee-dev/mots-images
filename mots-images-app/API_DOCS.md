@@ -196,7 +196,7 @@ Returns (403) if the series doesn't belong to the authenticated teacher.
 
 **GET /series/:seriesId**
 Returns the full detail of a series — title, and for each linked word: text, sentence, and order.
-Returns (200): `[{ text, sentence, order, title }, ...]`
+Returns (200): `[{ id, text, sentence, zones, order, title }, ...]`
 Returns (404) if no matching series is found.
 
 **GET /series**
