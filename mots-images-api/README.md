@@ -99,6 +99,7 @@ erDiagram
     int id PK
     string title
     int teacher_id FK
+    boolean is_active
   }
   SERIES_WORDS {
     int series_id FK

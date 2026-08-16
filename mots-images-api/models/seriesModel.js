@@ -29,12 +29,23 @@ const seriesByTeacher = async (teacherId) => {
         SELECT s.id, s.title, COUNT(sw.word_id)
         FROM series s
         LEFT JOIN series_words sw ON sw.series_id = s.id
-        WHERE s.teacher_id = $1
+        WHERE s.teacher_id = $1 AND s.is_active = true
         GROUP BY s.id`, [teacherId]
     )
     console.log(result.rows);
     return result.rows
     
+}
+
+const getSeriesById = async (teacherId, seriesId) => {
+    const result = await pool.query(`
+        SELECT id, title 
+        FROM series
+        WHERE teacher_id = $1 AND id = $2`, [teacherId, seriesId]
+    )
+
+    console.log(result.rows);    
+    return result.rows
 }
 
 const getSeriesDetail = async (seriesId, teacherId) => {
@@ -49,4 +60,26 @@ const getSeriesDetail = async (seriesId, teacherId) => {
     return result.rows
 }
 
-module.exports = { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail }
+const editSeriesTitle =  async (seriesId, title, teacher_id) =>  {
+    const result = await pool.query(`
+        UPDATE series
+        SET title = $1
+        WHERE id = $2 AND teacher_id = $3
+        RETURNING id, title`, [title, seriesId, teacher_id]
+    )
+    console.log(result.rows);
+    return result.rows
+}
+
+const updateSeriesStatus = async (seriesId, teacher_id) => {
+    const result = await pool.query(`
+        UPDATE series
+        SET is_active = false
+        WHERE id = $1 AND teacher_id = $2
+        RETURNING id, is_active`, [seriesId, teacher_id]
+    )
+    console.log(result.rows);
+    return result.rows
+}
+
+module.exports = { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail, getSeriesById, editSeriesTitle, updateSeriesStatus}

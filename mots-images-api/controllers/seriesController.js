@@ -1,4 +1,4 @@
-const { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail } = require('../models/seriesModel')
+const { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail, getSeriesById, editSeriesTitle, updateSeriesStatus } = require('../models/seriesModel')
 const createSeriesController = async (req, res) => {
     try {
     const teacherId = req.teacherId
@@ -54,15 +54,43 @@ const getSeriesDetailController = async (req, res) => {
     const teacherId = req.teacherId
     const seriesId = req.params.seriesId
 
+    const validSeries = await getSeriesById(teacherId, seriesId)
+    
+    if(validSeries.length > 0) {
+        try {
+            const detail = await getSeriesDetail(seriesId, teacherId)
+            res.status(200).json(detail)
+        } catch (error) {
+            res.status(500).json(error.message)
+        }        
+    } else {
+        res.status(404).json('Not found')
+    }
+}
+
+const editSeriesTitleController = async (req, res) => {
+    const seriesId = req.params.seriesId
+    const {title} = req.body
+    const teacherId = req.teacherId
+
     try {
-        const detail = await getSeriesDetail(seriesId, teacherId)
-        if(detail.length === 0) {
-            return res.status(404).json("Not found")
-        }
-        res.status(200).json(detail)
+        const result = await editSeriesTitle(seriesId, title, teacherId)
+        res.status(200).json(result)
     } catch (error) {
         res.status(500).json(error.message)
     }
 }
 
-module.exports = { createSeriesController, linkWordsToSeriesController, seriesByTeacherController, getSeriesDetailController }
+const updateSeriesStatusController = async (req, res) => {
+    const seriesId = req.params.seriesId
+    const teacherId = req.teacherId
+
+    try {
+        const result = await updateSeriesStatus(seriesId, teacherId)
+        res.status(200).json(result)
+    } catch (error) {
+        res.status(500).json(error.message)
+    }
+}
+
+module.exports = { createSeriesController, linkWordsToSeriesController, seriesByTeacherController, getSeriesDetailController, editSeriesTitleController, updateSeriesStatusController}
