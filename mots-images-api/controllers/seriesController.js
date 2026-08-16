@@ -1,4 +1,4 @@
-const { createSeries, linkWordsToSeries, seriesByTeacher } = require('../models/seriesModel')
+const { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail } = require('../models/seriesModel')
 const createSeriesController = async (req, res) => {
     try {
     const teacherId = req.teacherId
@@ -50,4 +50,19 @@ const seriesByTeacherController = async (req, res) => {
     }
 }
 
-module.exports = { createSeriesController, linkWordsToSeriesController, seriesByTeacherController }
+const getSeriesDetailController = async (req, res) => {
+    const teacherId = req.teacherId
+    const seriesId = req.params.seriesId
+
+    try {
+        const detail = await getSeriesDetail(seriesId, teacherId)
+        if(detail.length === 0) {
+            return res.status(404).json("Not found")
+        }
+        res.status(200).json(detail)
+    } catch (error) {
+        res.status(500).json(error.message)
+    }
+}
+
+module.exports = { createSeriesController, linkWordsToSeriesController, seriesByTeacherController, getSeriesDetailController }

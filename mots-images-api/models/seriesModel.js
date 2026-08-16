@@ -37,4 +37,16 @@ const seriesByTeacher = async (teacherId) => {
     
 }
 
-module.exports = { createSeries, linkWordsToSeries, seriesByTeacher }
+const getSeriesDetail = async (seriesId, teacherId) => {
+    const result = await pool.query(`
+        SELECT w.text, w.sentence, sw."order", s.title
+        FROM series s
+        JOIN series_words sw ON s.id = sw.series_id
+        JOIN words w ON w.id = sw.word_id
+        WHERE $1 = s.id AND $2 = s.teacher_id`, [seriesId, teacherId]
+    )
+    console.log(result.rows);    
+    return result.rows
+}
+
+module.exports = { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail }
