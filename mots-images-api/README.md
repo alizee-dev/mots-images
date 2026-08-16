@@ -204,6 +204,18 @@ Returns (404) if no matching series is found.
 Returns all series belonging to the authenticated teacher, with a word count for each (series with no words yet still appear, with `count: 0`).
 Returns (200): `[{ id, title, count }, ...]`
 
+**PUT /series/:seriesId**
+Updates a series title.
+Body: `{ title: string }`
+Returns (200): `{ id, title }`
+Returns (403) if the series doesn't belong to the authenticated teacher.
+
+**PUT /series/:seriesId/status**
+Soft-deletes a series (sets `is_active` to `false`). The series no longer appears in GET /series, but its history (assignments, test sessions, scores) remains intact and queryable.
+No body required.
+Returns (200): `{ id, is_active }`
+Returns (403) if the series doesn't belong to the authenticated teacher.
+
 ### Assignments
 
 **POST /assignments/:seriesId/students**
