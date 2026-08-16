@@ -194,6 +194,11 @@ Body: `{ wordsIds: number[] }`
 Returns (201): `[{ series_id, word_id, order }, ...]`
 Returns (403) if the series doesn't belong to the authenticated teacher.
 
+**GET /series/:seriesId**
+Returns the full detail of a series — title, and for each linked word: text, sentence, and order.
+Returns (200): `[{ text, sentence, order, title }, ...]`
+Returns (404) if no matching series is found.
+
 **GET /series**
 Returns all series belonging to the authenticated teacher, with a word count for each (series with no words yet still appear, with `count: 0`).
 Returns (200): `[{ id, title, count }, ...]`
@@ -205,6 +210,11 @@ Assigns a series to one or more students. Creates one row per student (an assign
 Body: `{ studentsIds: number[] }`
 Returns (201): `[{ id, series_id, student_id }, ...]`
 Returns (403) if the series doesn't belong to the authenticated teacher, or if any of the given students don't.
+
+**GET /assignments/:studentId**
+Returns the assignments given to a specific student that don't have a completed test session yet ("pending" assignments) — series title and word count for each.
+Returns (200): `[{ id, title, count }, ...]`
+Returns (403) if the student doesn't belong to the authenticated teacher.
 
 ### Test sessions
 
