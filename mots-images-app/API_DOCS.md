@@ -213,7 +213,7 @@ Returns (403) if the series doesn't belong to the authenticated teacher, or if a
 
 **GET /assignments/:studentId**
 Returns the assignments given to a specific student that don't have a completed test session yet ("pending" assignments) — series title and word count for each.
-Returns (200): `[{ id, title, count }, ...]`
+Returns (200): `[{ id, series_id, title, count }, ...]`
 Returns (403) if the student doesn't belong to the authenticated teacher.
 
 ### Test sessions
