@@ -99,6 +99,7 @@ erDiagram
     int id PK
     string title
     int teacher_id FK
+    boolean is_active
   }
   SERIES_WORDS {
     int series_id FK
@@ -203,13 +204,26 @@ Returns (404) if no matching series is found.
 Returns all series belonging to the authenticated teacher, with a word count for each (series with no words yet still appear, with `count: 0`).
 Returns (200): `[{ id, title, count }, ...]`
 
+**PUT /series/:seriesId**
+Updates a series title.
+Body: `{ title: string }`
+Returns (200): `{ id, title }`
+Returns (403) if the series doesn't belong to the authenticated teacher.
+
+**PUT /series/:seriesId/status**
+Soft-deletes a series (sets `is_active` to `false`). The series no longer appears in GET /series, but its history (assignments, test sessions, scores) remains intact and queryable.
+No body required.
+Returns (200): `{ id, is_active }`
+Returns (403) if the series doesn't belong to the authenticated teacher.
+
 ### Assignments
 
 **POST /assignments/:seriesId/students**
-Assigns a series to one or more students. Creates one row per student (an assignment is always tied to exactly one student).
+Assigns a series to one or more students. Creates one row per student (an assignment is always tied to exactly one student). Students already assigned to this series are silently skipped.
 Body: `{ studentsIds: number[] }`
 Returns (201): `[{ id, series_id, student_id }, ...]`
 Returns (403) if the series doesn't belong to the authenticated teacher, or if any of the given students don't.
+Returns (409) if all given students are already assigned to this series.
 
 **GET /assignments/:studentId**
 Returns the assignments given to a specific student that don't have a completed test session yet ("pending" assignments) — series title and word count for each.

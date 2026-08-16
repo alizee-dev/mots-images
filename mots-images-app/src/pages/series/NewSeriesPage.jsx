@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWords } from '../../api/words'
+import { createWord, getWords, updateWord } from '../../api/words'
 import { addWordsToSeries, createSeries } from '../../api/series'
 
 export default function NewSeriesPage() {
@@ -15,6 +15,15 @@ export default function NewSeriesPage() {
   const [wordsLoading, setWordsLoading] = useState(false)
   const [selected, setSelected] = useState([])
   const [search, setSearch] = useState('')
+  const [quickWordText, setQuickWordText] = useState('')
+  const [quickWordSubmitting, setQuickWordSubmitting] = useState(false)
+  // Ids of selected words for which the inline "phrase à trous" field is
+  // shown — any word (bank-picked or quick-added) that had no sentence at
+  // the moment it was selected, so a series never quietly ends up with a
+  // word missing its phrase. Once shown for a word it stays shown for the
+  // rest of this session, even after a sentence is typed in, so the field
+  // doesn't disappear out from under the teacher mid-edit.
+  const [sentenceFieldIds, setSentenceFieldIds] = useState(() => new Set())
 
   useEffect(() => {
     if (step !== 'words') return
@@ -44,10 +53,43 @@ export default function NewSeriesPage() {
   const addWord = (word) => {
     if (selected.some((w) => w.id === word.id)) return
     setSelected((prev) => [...prev, word])
+    if (!word.sentence) {
+      setSentenceFieldIds((prev) => new Set(prev).add(word.id))
+    }
   }
 
   const removeWord = (wordId) => {
     setSelected((prev) => prev.filter((w) => w.id !== wordId))
+  }
+
+  const handleQuickAddWord = async (e) => {
+    e.preventDefault()
+    const text = quickWordText.trim()
+    if (!text) return
+    setQuickWordSubmitting(true)
+    setError(null)
+    try {
+      const word = await createWord(text, '')
+      setSelected((prev) => [...prev, word])
+      setSentenceFieldIds((prev) => new Set(prev).add(word.id))
+      setQuickWordText('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setQuickWordSubmitting(false)
+    }
+  }
+
+  const updateSelectedSentence = (wordId, sentence) => {
+    setSelected((prev) => prev.map((w) => (w.id === wordId ? { ...w, sentence } : w)))
+  }
+
+  const saveSelectedSentence = async (word) => {
+    try {
+      await updateWord(word.id, word.sentence || '', word.zones || [])
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   const moveWord = (index, direction) => {
@@ -113,6 +155,19 @@ export default function NewSeriesPage() {
 
       {error && <p className="form-error">{error}</p>}
 
+      <form className="inline-form" onSubmit={handleQuickAddWord}>
+        <input
+          type="text"
+          className="word-input"
+          placeholder="Mot sans illustration (ex : pour une simple dictée)"
+          value={quickWordText}
+          onChange={(e) => setQuickWordText(e.target.value)}
+        />
+        <button type="submit" className="btn btn-secondary" disabled={quickWordSubmitting}>
+          {quickWordSubmitting ? 'Ajout…' : '➕ Ajouter sans illustration'}
+        </button>
+      </form>
+
       <div className="word-picker">
         <div className="word-picker-col">
           <h3>Banque de mots</h3>
@@ -141,24 +196,39 @@ export default function NewSeriesPage() {
           <ul className="picker-list">
             {selected.map((word, i) => (
               <li key={word.id} className="picker-item picker-item-selected">
-                <span className="picker-order">{i + 1}</span>
-                <span className="picker-text">{word.text}</span>
-                <span className="picker-actions">
-                  <button type="button" className="btn btn-chip" onClick={() => moveWord(i, -1)} disabled={i === 0}>
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-chip"
-                    onClick={() => moveWord(i, 1)}
-                    disabled={i === selected.length - 1}
-                  >
-                    ↓
-                  </button>
-                  <button type="button" className="btn btn-danger" onClick={() => removeWord(word.id)}>
-                    ✖️
-                  </button>
-                </span>
+                <div className="picker-item-row">
+                  <span className="picker-order">{i + 1}</span>
+                  <span className="picker-text">{word.text}</span>
+                  <span className="picker-actions">
+                    <button type="button" className="btn btn-chip" onClick={() => moveWord(i, -1)} disabled={i === 0}>
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-chip"
+                      onClick={() => moveWord(i, 1)}
+                      disabled={i === selected.length - 1}
+                    >
+                      ↓
+                    </button>
+                    <button type="button" className="btn btn-danger" onClick={() => removeWord(word.id)}>
+                      ✖️
+                    </button>
+                  </span>
+                </div>
+                {sentenceFieldIds.has(word.id) && (
+                  <label className="quick-word-sentence-label">
+                    ⚠️ Aucune phrase pour ce mot — la passation de test affichera juste « Écris le mot : » sans elle
+                    <input
+                      type="text"
+                      className="quick-word-sentence-input"
+                      placeholder="ex : La ___ est posée sur la table."
+                      value={word.sentence || ''}
+                      onChange={(e) => updateSelectedSentence(word.id, e.target.value)}
+                      onBlur={() => saveSelectedSentence(word)}
+                    />
+                  </label>
+                )}
               </li>
             ))}
           </ul>

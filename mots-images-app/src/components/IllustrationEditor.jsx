@@ -374,9 +374,10 @@ export default function IllustrationEditor({
   word,
   zone,
   fontFamily,
-  letterColor,
-  onChange,
-  onLetterColorChange,
+  letterColor: initialLetterColor,
+  clipboard,
+  onCopy,
+  onSave,
   onDeleteZone,
   onClose,
 }) {
@@ -389,6 +390,7 @@ export default function IllustrationEditor({
   const frame = useMemo(() => (rect ? getZoneFrame(rect) : null), [rect])
 
   const [illustration, setIllustration] = useState(zone.illustration)
+  const [letterColor, setLetterColor] = useState(initialLetterColor)
   const [tool, setTool] = useState('select')
   const [penColor, setPenColor] = useState(PEN_COLORS[0])
   const [penSize, setPenSize] = useState(PEN_SIZES[1].value)
@@ -404,31 +406,35 @@ export default function IllustrationEditor({
 
   useEffect(() => {
     setIllustration(zone.illustration)
+    setLetterColor(initialLetterColor)
     setSelectedId(null)
     setCropTargetId(null)
     setCropDraft(null)
     setCropPath(null)
     setHistory([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zone.id])
 
   // Every change made in this editor — strokes, stickers, images, crops,
   // opacity, and the letter's own color — goes through one of these two
   // functions, so a single history stack covers "undo" for all of them.
+  // Nothing here reaches the parent yet: it all stays local until the
+  // teacher explicitly clicks "Enregistrer", so closing without saving
+  // truly discards everything done in this session.
   const commit = useCallback(
     (next) => {
       setHistory((h) => [...h, { illustration, letterColor }])
       setIllustration(next)
-      onChange(zone.id, next)
     },
-    [onChange, zone.id, illustration, letterColor]
+    [illustration, letterColor]
   )
 
   const changeLetterColor = useCallback(
     (color) => {
       setHistory((h) => [...h, { illustration, letterColor }])
-      onLetterColorChange(color)
+      setLetterColor(color)
     },
-    [onLetterColorChange, illustration, letterColor]
+    [illustration, letterColor]
   )
 
   const undo = useCallback(() => {
@@ -436,11 +442,100 @@ export default function IllustrationEditor({
     const prev = history[history.length - 1]
     setHistory((h) => h.slice(0, -1))
     setIllustration(prev.illustration)
-    onChange(zone.id, prev.illustration)
-    if (prev.letterColor !== letterColor) {
-      onLetterColorChange(prev.letterColor ?? null)
+    setLetterColor(prev.letterColor ?? null)
+  }, [history])
+
+  const findItem = (id) => {
+    const stroke = illustration.strokes.find((s) => s.id === id)
+    if (stroke) return { item: stroke, kind: 'stroke' }
+    const sticker = illustration.stickers.find((s) => s.id === id)
+    if (sticker) return { item: sticker, kind: 'sticker' }
+    const image = illustration.images.find((im) => im.id === id)
+    if (image) return { item: image, kind: 'image' }
+    return null
+  }
+
+  const deleteSelected = useCallback(() => {
+    if (!selectedId) return
+    commit({
+      ...illustration,
+      strokes: illustration.strokes.filter((s) => s.id !== selectedId),
+      stickers: illustration.stickers.filter((s) => s.id !== selectedId),
+      images: illustration.images.filter((im) => im.id !== selectedId),
+    })
+    setSelectedId(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, illustration])
+
+  // Copy/paste works on a single selected sticker or image (crop and size
+  // travel with it, since those live on the item itself) rather than the
+  // whole illustration — driven entirely by Ctrl/Cmd+C / Ctrl/Cmd+V below,
+  // no dedicated buttons. The clipboard is handed up to the parent so it
+  // survives switching to another letter of the same word.
+  const copySelected = useCallback(() => {
+    const found = findItem(selectedId)
+    if (!found) return
+    onCopy({ kind: found.kind, item: JSON.parse(JSON.stringify(found.item)) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, illustration, onCopy])
+
+  const pasteElement = useCallback(() => {
+    if (!clipboard) return
+    const pasted = { ...clipboard.item, id: uuid() }
+    if (clipboard.kind === 'sticker') {
+      commit({ ...illustration, stickers: [...illustration.stickers, pasted] })
+    } else if (clipboard.kind === 'image') {
+      commit({ ...illustration, images: [...illustration.images, pasted] })
+    } else {
+      commit({ ...illustration, strokes: [...illustration.strokes, pasted] })
     }
-  }, [history, onChange, zone.id, letterColor, onLetterColorChange])
+    setSelectedId(pasted.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clipboard, illustration])
+
+  // Keyboard shortcuts stand in for buttons this editor deliberately
+  // doesn't have: Ctrl/Cmd+Z undoes, Delete/Backspace removes the selected
+  // element, Ctrl/Cmd+C and +V copy and paste it. Undo works in any tool
+  // (you may want to undo a stroke right after drawing it, without first
+  // switching back to "select"); the rest are select-mode-only, and all of
+  // them are disabled while a text input elsewhere in the editor has focus,
+  // so e.g. the emoji search box can still use these same keys normally.
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
+      const meta = e.ctrlKey || e.metaKey
+      if (meta && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        undo()
+        return
+      }
+      // Escape bails out of a stroke that's going wrong while it's still
+      // being drawn (pointer still down) — the stroke never gets committed
+      // to history at all, so there's nothing to undo afterward.
+      if (e.key === 'Escape' && tool === 'pen' && drawingRef.current) {
+        e.preventDefault()
+        drawingRef.current = null
+        setIllustration((prev) => ({ ...prev }))
+        return
+      }
+      if (tool !== 'select' || cropTargetId) return
+      if (meta && e.key.toLowerCase() === 'c') {
+        if (!selectedId) return
+        e.preventDefault()
+        copySelected()
+      } else if (meta && e.key.toLowerCase() === 'v') {
+        if (!clipboard) return
+        e.preventDefault()
+        pasteElement()
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!selectedId) return
+        e.preventDefault()
+        deleteSelected()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [tool, cropTargetId, selectedId, clipboard, copySelected, pasteElement, deleteSelected, undo])
 
   const toFrac = (stagePos) => ({ x: stagePos.x / displaySize, y: stagePos.y / displaySize })
 
@@ -474,14 +569,6 @@ export default function IllustrationEditor({
 
   if (!frame) return null
 
-  const findItem = (id) => {
-    const sticker = illustration.stickers.find((s) => s.id === id)
-    if (sticker) return { item: sticker, kind: 'sticker' }
-    const image = illustration.images.find((im) => im.id === id)
-    if (image) return { item: image, kind: 'image' }
-    return null
-  }
-
   const addSticker = (emoji) => {
     const sticker = {
       id: uuid(),
@@ -498,6 +585,10 @@ export default function IllustrationEditor({
     commit({ ...illustration, stickers: [...illustration.stickers, sticker] })
     setSelectedId(sticker.id)
     setTool('select')
+  }
+
+  const updateStroke = (updated) => {
+    commit({ ...illustration, strokes: illustration.strokes.map((s) => (s.id === updated.id ? updated : s)) })
   }
 
   const updateSticker = (updated) => {
@@ -539,21 +630,12 @@ export default function IllustrationEditor({
     e.target.value = ''
   }
 
-  const deleteSelected = () => {
-    if (!selectedId) return
-    commit({
-      ...illustration,
-      stickers: illustration.stickers.filter((s) => s.id !== selectedId),
-      images: illustration.images.filter((im) => im.id !== selectedId),
-    })
-    setSelectedId(null)
-  }
-
   const updateOpacity = (value) => {
     const found = findItem(selectedId)
     if (!found) return
     if (found.kind === 'sticker') updateSticker({ ...found.item, opacity: value })
-    else updateImage({ ...found.item, opacity: value })
+    else if (found.kind === 'image') updateImage({ ...found.item, opacity: value })
+    else updateStroke({ ...found.item, opacity: value })
   }
 
   const clearZone = () => {
@@ -662,14 +744,18 @@ export default function IllustrationEditor({
   return (
     <div className="editor-overlay" role="dialog" aria-modal="true">
       <div className="editor-panel">
+        <button type="button" className="editor-close-btn" onClick={onClose} aria-label="Fermer sans enregistrer">
+          ✕
+        </button>
         <div className="editor-header">
           <h2>Illustrer la {zoneLabel}</h2>
           <div className="editor-header-actions">
-            <button type="button" className="btn btn-ghost" onClick={undo} disabled={history.length === 0}>
-              ↩️ Annuler
-            </button>
-            <button type="button" className="btn btn-toggle active" onClick={onClose}>
-              ✅ Valider
+            <button
+              type="button"
+              className="btn btn-toggle active"
+              onClick={() => onSave(illustration, letterColor)}
+            >
+              💾 Enregistrer
             </button>
           </div>
         </div>
@@ -718,16 +804,33 @@ export default function IllustrationEditor({
                   </Group>
 
                   {liveStrokes.map((s) => (
-                    <Line
-                      key={s.id}
-                      points={s.points.map((v) => v * displaySize)}
-                      stroke={s.color}
-                      strokeWidth={s.strokeWidth * displaySize}
-                      opacity={s.opacity ?? 1}
-                      lineCap="round"
-                      lineJoin="round"
-                      tension={0.35}
-                    />
+                    <Group key={s.id}>
+                      {selectedId === s.id && (
+                        <Line
+                          points={s.points.map((v) => v * displaySize)}
+                          stroke="#2a6df4"
+                          strokeWidth={s.strokeWidth * displaySize + 14}
+                          opacity={0.35}
+                          lineCap="round"
+                          lineJoin="round"
+                          tension={0.35}
+                          listening={false}
+                        />
+                      )}
+                      <Line
+                        points={s.points.map((v) => v * displaySize)}
+                        stroke={s.color}
+                        strokeWidth={s.strokeWidth * displaySize}
+                        opacity={s.opacity ?? 1}
+                        lineCap="round"
+                        lineJoin="round"
+                        tension={0.35}
+                        hitStrokeWidth={Math.max(s.strokeWidth * displaySize, 24)}
+                        listening={editableItems}
+                        onClick={() => setSelectedId(s.id)}
+                        onTap={() => setSelectedId(s.id)}
+                      />
+                    </Group>
                   ))}
 
                   {illustration.images
@@ -771,13 +874,39 @@ export default function IllustrationEditor({
                   )}
                 </Layer>
               </Stage>
+              {history.length > 0 && (
+                <button
+                  type="button"
+                  className="canvas-undo-btn"
+                  onClick={undo}
+                  aria-label="Annuler la dernière action"
+                  title="Annuler la dernière action"
+                >
+                  ↩️
+                </button>
+              )}
+              {editableItems && selectedId && (
+                <button
+                  type="button"
+                  className="canvas-delete-btn"
+                  onClick={deleteSelected}
+                  aria-label="Supprimer l’élément sélectionné"
+                  title="Supprimer l’élément sélectionné"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
             <p className="editor-hint">
               {cropTargetId
                 ? cropMode === 'lasso'
                   ? 'Dessine un contour fermé autour de la partie à garder.'
                   : 'Fais glisser les coins pour ne garder que cette partie de l’image.'
-                : 'La lettre reste toujours visible en filigrane : dessine ou pose les images autour, sans la cacher complètement.'}
+                : tool === 'select' && selectedId
+                  ? 'Glisse l’élément pour le déplacer. Ctrl/Cmd+C puis Ctrl/Cmd+V pour le dupliquer (y compris sur une autre lettre), Suppr pour le retirer, Ctrl/Cmd+Z pour annuler.'
+                  : tool === 'select'
+                    ? 'Clique sur un trait, un sticker ou une image pour le sélectionner (et le retirer avec Suppr). Ctrl/Cmd+Z pour annuler la dernière action.'
+                    : 'La lettre reste toujours visible en filigrane : dessine ou pose les images autour, sans la cacher complètement. Échap annule le trait en cours de dessin, Ctrl/Cmd+Z annule la dernière action.'}
             </p>
           </div>
 
@@ -841,25 +970,20 @@ export default function IllustrationEditor({
                 </div>
 
                 <div className="editor-tool-group">
-                  <div className="editor-tabs">
-                    <button
-                      type="button"
-                      className={`btn btn-tab ${tool === 'select' ? 'active' : ''}`}
-                      onClick={() => setTool('select')}
-                    >
-                      🖐️ Déplacer
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn btn-tab ${tool === 'pen' ? 'active' : ''}`}
-                      onClick={() => {
+                  <button
+                    type="button"
+                    className="btn btn-tab active"
+                    onClick={() => {
+                      if (tool === 'pen') {
+                        setTool('select')
+                      } else {
                         setTool('pen')
                         setSelectedId(null)
-                      }}
-                    >
-                      ✏️ Dessiner
-                    </button>
-                  </div>
+                      }
+                    }}
+                  >
+                    {tool === 'pen' ? '🖐️ Terminer le dessin' : '✏️ Dessiner'}
+                  </button>
                 </div>
 
                 {tool === 'pen' && (
@@ -906,7 +1030,8 @@ export default function IllustrationEditor({
                 {tool === 'select' && selectedFound && (
                   <div className="editor-tool-group">
                     <p className="editor-tool-label">
-                      Transparence de l'image : {Math.round((selectedFound.item.opacity ?? 1) * 100)}%
+                      Transparence {selectedFound.kind === 'stroke' ? 'du trait' : "de l'image"} :{' '}
+                      {Math.round((selectedFound.item.opacity ?? 1) * 100)}%
                     </p>
                     <input
                       type="range"
@@ -917,12 +1042,11 @@ export default function IllustrationEditor({
                       value={selectedFound.item.opacity ?? 1}
                       onChange={(e) => updateOpacity(parseFloat(e.target.value))}
                     />
-                    <button type="button" className="btn btn-secondary" onClick={() => startCrop(selectedId)}>
-                      ✂️ Recadrer
-                    </button>
-                    <button type="button" className="btn btn-danger" onClick={deleteSelected}>
-                      🗑️ Supprimer cet élément
-                    </button>
+                    {selectedFound.kind !== 'stroke' && (
+                      <button type="button" className="btn btn-secondary" onClick={() => startCrop(selectedId)}>
+                        ✂️ Recadrer
+                      </button>
+                    )}
                   </div>
                 )}
 

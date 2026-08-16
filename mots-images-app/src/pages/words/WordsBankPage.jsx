@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { getWords } from '../../api/words'
+import IllustratedWordPreview from '../../components/IllustratedWordPreview'
 
 export default function WordsBankPage() {
+  const { fontFamily, theme } = useOutletContext()
   const [words, setWords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     getWords()
@@ -13,6 +16,8 @@ export default function WordsBankPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
+
+  const filteredWords = words.filter((word) => word.text.toLowerCase().startsWith(search.trim().toLowerCase()))
 
   return (
     <div className="page">
@@ -23,24 +28,31 @@ export default function WordsBankPage() {
         </Link>
       </div>
 
+      <input
+        type="text"
+        className="word-input"
+        placeholder="Rechercher un mot…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
       {error && <p className="form-error">{error}</p>}
       {loading && <p>Chargement…</p>}
 
-      {!loading && words.length === 0 && <p className="empty-hint">Aucun mot dans la banque pour l’instant.</p>}
+      {!loading && filteredWords.length === 0 && (
+        <p className="empty-hint">
+          {words.length === 0 ? 'Aucun mot dans la banque pour l’instant.' : 'Aucun mot ne correspond à cette recherche.'}
+        </p>
+      )}
 
-      <ul className="card-list">
-        {words.map((word) => {
-          const illustrated = (word.zones || []).length
-          return (
-            <li key={word.id}>
-              <Link to={`/words/${word.id}`} className="card-list-item card-list-item-row">
-                <span>🔤 {word.text}</span>
-                <span className="card-list-meta">{word.sentence}</span>
-                <span className="card-list-score">{illustrated ? `${illustrated} lettre(s) illustrée(s)` : 'Non illustré'}</span>
-              </Link>
-            </li>
-          )
-        })}
+      <ul className="card-list series-word-list">
+        {filteredWords.map((word) => (
+          <li key={word.id} className="series-word-item">
+            <Link to={`/words/${word.id}`} className="word-bank-card-link">
+              <IllustratedWordPreview text={word.text} zones={word.zones} theme={theme} fontFamily={fontFamily} />
+            </Link>
+          </li>
+        ))}
       </ul>
     </div>
   )

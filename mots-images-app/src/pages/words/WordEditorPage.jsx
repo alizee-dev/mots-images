@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import { jsPDF } from 'jspdf'
 import WordStage from '../../components/WordStage'
@@ -11,7 +11,6 @@ const EXPORT_PIXEL_RATIO = 2
 const EDIT_BASE_FONT_SIZE = 130
 const PREVIEW_BASE_FONT_SIZE = 170
 const MIN_FIT_FONT_SIZE = 20
-const SAVE_DEBOUNCE_MS = 600
 
 function useFitFontSize(text, fontFamily, baseFontSize, containerRef) {
   const [fontSize, setFontSize] = useState(baseFontSize)
@@ -41,25 +40,51 @@ function emptyIllustration() {
 export default function WordEditorPage() {
   const { wordId } = useParams()
   const navigate = useNavigate()
-  const { fontFamily, theme } = useOutletContext()
+  const [searchParams] = useSearchParams()
+  const { fontFamily, theme, dyslexicFont } = useOutletContext()
   const isNew = !wordId
+  const fromSeriesId = searchParams.get('fromSeriesId')
+  const fromSeries = fromSeriesId
+    ? { seriesId: fromSeriesId, title: searchParams.get('fromSeriesTitle') || null }
+    : null
 
   const [textDraft, setTextDraft] = useState('')
-  const [sentenceDraft, setSentenceDraft] = useState('')
   const [creationError, setCreationError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Same component-reuse concern as the load effect below: navigating from
+  // an existing word straight to "Nouveau mot" doesn't remount this page,
+  // so the previous creation attempt's leftover text has to be cleared here.
+  useEffect(() => {
+    if (isNew) {
+      setTextDraft('')
+      setCreationError(null)
+      // `submitting` otherwise stays stuck at true forever after a
+      // successful creation, since the success path only navigates away
+      // rather than resetting it — leaving the button permanently
+      // disabled the next time this same page instance shows the
+      // creation form (e.g. via "Nouveau mot" from an existing word).
+      setSubmitting(false)
+    }
+  }, [isNew])
 
   const [loading, setLoading] = useState(!isNew)
   const [loadError, setLoadError] = useState(null)
   const [wordText, setWordText] = useState('')
   const [sentence, setSentence] = useState('')
   const [zones, setZones] = useState([])
-  const [saveStatus, setSaveStatus] = useState('idle')
+  // The last known persisted state, so the "Enregistrer" button can tell
+  // whether there's anything new to save. Saving is explicit — nothing
+  // here writes to the backend on its own.
+  const [savedSnapshot, setSavedSnapshot] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(null)
 
   const [mode, setMode] = useState('edit')
   const [activeZoneId, setActiveZoneId] = useState(null)
+  const [draftNewZone, setDraftNewZone] = useState(null)
+  const [clipboard, setClipboard] = useState(null)
   const loadedOnce = useRef(false)
-  const saveTimer = useRef(null)
   const previewStageRef = useRef(null)
   const previewContainerRef = useRef(null)
   const editContainerRef = useRef(null)
@@ -68,7 +93,18 @@ export default function WordEditorPage() {
     if (isNew) return
     setLoading(true)
     setLoadError(null)
+    setSaveError(null)
     loadedOnce.current = false
+    // Navigating from one word's edit page straight to another (e.g. via
+    // "Nouveau mot") reuses this same component instance rather than
+    // remounting it, so state left over from the previous word — which
+    // preview/edit mode was active, an open zone editor, the copy/paste
+    // clipboard — has to be reset explicitly here rather than relying on
+    // useState's initial value.
+    setMode('edit')
+    setActiveZoneId(null)
+    setDraftNewZone(null)
+    setClipboard(null)
     getWords()
       .then((words) => {
         const found = words.find((w) => String(w.id) === wordId)
@@ -79,6 +115,7 @@ export default function WordEditorPage() {
         setWordText(found.text)
         setSentence(found.sentence || '')
         setZones(found.zones || [])
+        setSavedSnapshot({ sentence: found.sentence || '', zones: found.zones || [] })
       })
       .catch((err) => setLoadError(err.message))
       .finally(() => {
@@ -87,21 +124,23 @@ export default function WordEditorPage() {
       })
   }, [wordId, isNew])
 
-  useEffect(() => {
-    if (isNew || !loadedOnce.current) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    setSaveStatus('pending')
-    saveTimer.current = setTimeout(async () => {
-      setSaveStatus('saving')
-      try {
-        await updateWord(wordId, sentence, zones)
-        setSaveStatus('saved')
-      } catch {
-        setSaveStatus('error')
-      }
-    }, SAVE_DEBOUNCE_MS)
-    return () => clearTimeout(saveTimer.current)
-  }, [wordId, sentence, zones, isNew])
+  const hasUnsavedChanges = Boolean(
+    savedSnapshot &&
+      (sentence !== savedSnapshot.sentence || JSON.stringify(zones) !== JSON.stringify(savedSnapshot.zones))
+  )
+
+  const handleSaveWord = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await updateWord(wordId, sentence, zones)
+      setSavedSnapshot({ sentence, zones })
+    } catch (err) {
+      setSaveError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const editFontSize = useFitFontSize(wordText, fontFamily, EDIT_BASE_FONT_SIZE, editContainerRef)
   const previewFontSize = useFitFontSize(wordText, fontFamily, PREVIEW_BASE_FONT_SIZE, previewContainerRef)
@@ -117,12 +156,11 @@ export default function WordEditorPage() {
   const handleCreate = async (e) => {
     e.preventDefault()
     const text = textDraft.trim()
-    const sentenceValue = sentenceDraft.trim()
-    if (!text || !sentenceValue) return
+    if (!text) return
     setSubmitting(true)
     setCreationError(null)
     try {
-      const word = await createWord(text, sentenceValue)
+      const word = await createWord(text, '')
       navigate(`/words/${word.id}`, { replace: true })
     } catch (err) {
       setCreationError(err.message)
@@ -130,39 +168,64 @@ export default function WordEditorPage() {
     }
   }
 
-  const activeZone = zones.find((z) => z.id === activeZoneId) || null
+  const activeZone = zones.find((z) => z.id === activeZoneId) || draftNewZone
   const activeLetterColor = activeZone ? activeZone.letterColor : undefined
 
   const openLetterZone = useCallback(
     (letterIndex) => {
       const existing = zones.find((z) => z.letterIndex === letterIndex)
       if (existing) {
+        setDraftNewZone(null)
         setActiveZoneId(existing.id)
         return
       }
       const zone = { id: uuid(), letterIndex, letterColor: null, illustration: emptyIllustration() }
-      setZones((zs) => [...zs, zone])
+      setDraftNewZone(zone)
       setActiveZoneId(zone.id)
     },
     [zones]
   )
 
-  const updateZoneIllustration = useCallback((zoneId, illustration) => {
-    setZones((zs) => zs.map((z) => (z.id === zoneId ? { ...z, illustration } : z)))
-  }, [])
-
-  const deleteZone = useCallback((zoneId) => {
-    setZones((zs) => zs.filter((z) => z.id !== zoneId))
+  const closeEditor = useCallback(() => {
+    setDraftNewZone(null)
     setActiveZoneId(null)
   }, [])
 
-  const handleActiveLetterColorChange = useCallback(
-    (color) => {
+  const saveZone = useCallback(
+    (illustration, letterColor) => {
       if (!activeZone) return
-      setZones((zs) => zs.map((z) => (z.id === activeZone.id ? { ...z, letterColor: color || null } : z)))
+      // A zone with nothing drawn on it and no letter color isn't a real
+      // customization — keeping it around as an empty object was leaving
+      // the letter permanently highlighted as "modified" in WordStage
+      // (which only checks whether a zone exists for that letter, not
+      // whether it has any content) even after every stroke/sticker/image
+      // in it had been removed.
+      const isEmpty =
+        illustration.strokes.length === 0 &&
+        illustration.stickers.length === 0 &&
+        illustration.images.length === 0 &&
+        !letterColor
+      setZones((zs) => {
+        if (isEmpty) return zs.filter((z) => z.id !== activeZone.id)
+        const exists = zs.some((z) => z.id === activeZone.id)
+        if (exists) {
+          return zs.map((z) =>
+            z.id === activeZone.id ? { ...z, illustration, letterColor: letterColor || null } : z
+          )
+        }
+        return [...zs, { id: activeZone.id, letterIndex: activeZone.letterIndex, illustration, letterColor: letterColor || null }]
+      })
+      setDraftNewZone(null)
+      setActiveZoneId(null)
     },
     [activeZone]
   )
+
+  const deleteZone = useCallback((zoneId) => {
+    setZones((zs) => zs.filter((z) => z.id !== zoneId))
+    setDraftNewZone(null)
+    setActiveZoneId(null)
+  }, [])
 
   const handleDownloadPng = () => {
     const stage = previewStageRef.current
@@ -216,25 +279,13 @@ export default function WordEditorPage() {
             placeholder="ex : poisson"
             value={textDraft}
             onChange={(e) => setTextDraft(e.target.value)}
-            required
-          />
-
-          <label htmlFor="new-word-sentence" className="word-input-label">
-            Phrase à trous
-          </label>
-          <input
-            id="new-word-sentence"
-            type="text"
-            className="word-input"
-            placeholder="ex : Le ___ nage dans l'aquarium."
-            value={sentenceDraft}
-            onChange={(e) => setSentenceDraft(e.target.value)}
+            autoFocus
             required
           />
 
           {creationError && <p className="form-error">{creationError}</p>}
 
-          <button type="submit" className="btn btn-toggle active" disabled={submitting}>
+          <button type="submit" className="btn btn-toggle active" disabled={submitting || !textDraft.trim()}>
             {submitting ? 'Création…' : "Créer et illustrer"}
           </button>
         </form>
@@ -247,41 +298,31 @@ export default function WordEditorPage() {
 
   return (
     <div className="page">
+      {fromSeries && (
+        <p className="breadcrumb">
+          <Link to={`/series/${fromSeries.seriesId}`} state={{ title: fromSeries.title }}>
+            ← Retour à {fromSeries.title ? `« ${fromSeries.title} »` : 'la série'}
+          </Link>
+        </p>
+      )}
       <div className="page-header-row">
         <h2>{wordText}</h2>
-        <span className={`save-status save-status-${saveStatus}`}>
-          {saveStatus === 'saving' && 'Enregistrement…'}
-          {saveStatus === 'saved' && 'Enregistré ✓'}
-          {saveStatus === 'error' && "Erreur d'enregistrement"}
-        </span>
-      </div>
-
-      <label htmlFor="word-sentence" className="word-input-label">
-        Phrase à trous
-      </label>
-      <input
-        id="word-sentence"
-        type="text"
-        className="word-input"
-        value={sentence}
-        onChange={(e) => setSentence(e.target.value)}
-      />
-
-      <div className="mode-row no-print">
-        <button
-          type="button"
-          className={`btn btn-tab ${mode === 'edit' ? 'active' : ''}`}
-          onClick={() => setMode('edit')}
-        >
-          ✏️ Édition
-        </button>
-        <button
-          type="button"
-          className={`btn btn-tab ${mode === 'preview' ? 'active' : ''}`}
-          onClick={() => setMode('preview')}
-        >
-          👁️ Aperçu final
-        </button>
+        <div className="app-header-actions">
+          {saveError && <span className="form-error">{saveError}</span>}
+          <button
+            type="button"
+            className="btn btn-toggle active"
+            onClick={handleSaveWord}
+            disabled={!hasUnsavedChanges || saving}
+          >
+            {saving ? 'Enregistrement…' : '💾 Enregistrer'}
+          </button>
+          {!fromSeries && (
+            <button type="button" className="btn btn-secondary" onClick={() => navigate('/words/new')}>
+              ➕ Nouveau mot
+            </button>
+          )}
+        </div>
       </div>
 
       {mode === 'edit' && (
@@ -301,6 +342,17 @@ export default function WordEditorPage() {
             />
           </div>
 
+          <label htmlFor="word-sentence" className="word-input-label">
+            Phrase à trous (facultatif)
+          </label>
+          <input
+            id="word-sentence"
+            type="text"
+            className={`word-input ${dyslexicFont ? 'font-dys' : ''}`}
+            value={sentence}
+            onChange={(e) => setSentence(e.target.value)}
+          />
+
           {zones.length > 0 && (
             <div className="zone-list no-print">
               {zones.map((zone) => (
@@ -310,12 +362,21 @@ export default function WordEditorPage() {
               ))}
             </div>
           )}
+
+          <div className="mode-row no-print">
+            <button type="button" className="btn btn-tab active" onClick={() => setMode('preview')}>
+              👁️ Aperçu final
+            </button>
+          </div>
         </>
       )}
 
       {mode === 'preview' && (
         <>
           <div className="export-bar no-print">
+            <button type="button" className="btn btn-tab active" onClick={() => setMode('edit')}>
+              ✏️ Retour à l’édition
+            </button>
             <button type="button" className="btn btn-secondary" onClick={handleDownloadPng}>
               💾 Télécharger (PNG)
             </button>
@@ -347,10 +408,11 @@ export default function WordEditorPage() {
           zone={activeZone}
           fontFamily={fontFamily}
           letterColor={activeLetterColor}
-          onChange={updateZoneIllustration}
-          onLetterColorChange={handleActiveLetterColorChange}
+          clipboard={clipboard}
+          onCopy={setClipboard}
+          onSave={saveZone}
           onDeleteZone={deleteZone}
-          onClose={() => setActiveZoneId(null)}
+          onClose={closeEditor}
         />
       )}
     </div>

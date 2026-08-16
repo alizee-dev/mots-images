@@ -1,15 +1,32 @@
 :root {
-  --color-bg: #f4f7fb;
-  --color-surface: #ffffff;
-  --color-text: #1f2b3a;
-  --color-primary: #2a6df4;
-  --color-primary-dark: #1c4fc0;
-  --color-accent: #ffb703;
-  --color-danger: #e5484d;
-  --color-border: #dbe2ea;
-  --radius-lg: 20px;
+  /* "Atelier" — the teacher-facing identity: a specialist's organized
+     toolkit. Warm stone neutrals, a library-lamp teal, slab-serif headings
+     over a humanist body face, soft card edges. Applies app-wide except
+     inside .test-scope (the child-facing test screen), which overrides
+     every one of these same tokens with its own "Clairière" palette. */
+  --color-bg: #ece7df;
+  --color-surface: #f9f7f3;
+  --color-surface-muted: #efe8db;
+  --color-surface-muted-hover: #e6dcc8;
+  --color-text: #2e2a24;
+  --color-text-muted: #7a7266;
+  --color-primary: #35665c;
+  --color-primary-dark: #24463f;
+  --color-accent: #b5793a;
+  --color-accent-contrast: #33220f;
+  --color-danger: #a13c2d;
+  --color-danger-bg: #f5e2da;
+  --color-danger-bg-hover: #f0d2c5;
+  --color-success: #3a7a4d;
+  --color-border: #d9d2c5;
+  --radius-lg: 18px;
   --radius-md: 14px;
-  --font-system: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --radius-sm: 10px;
+  --shadow-card: 0 3px 10px rgba(46, 42, 36, 0.09), 0 1px 2px rgba(46, 42, 36, 0.07);
+  --shadow-panel: 0 12px 32px rgba(46, 42, 36, 0.16);
+  --overlay-backdrop: rgba(30, 24, 18, 0.55);
+  --font-system: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --font-heading: Rockwell, "Roboto Slab", Cambria, Georgia, serif;
 }
 
 * {
@@ -30,10 +47,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.app.font-dys,
-.app.font-dys input,
-.app.font-dys button,
-.app.font-dys .zone-chip {
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+
+/* Scoped deliberately to child-facing content only (illustrated words,
+   fill-in-the-blank sentences, the test screen) — never to the teacher's
+   own working UI (menus, buttons, forms). Applied explicitly per-element
+   via this class, not inherited from a wrapper. */
+.font-dys {
   font-family: 'OpenDyslexic', var(--font-system);
 }
 
@@ -78,7 +102,7 @@ body {
 }
 
 .nav-link:hover {
-  background: #eef2f9;
+  background: var(--color-surface-muted);
 }
 
 .nav-link.active {
@@ -96,7 +120,32 @@ body {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   padding: 28px;
-  box-shadow: 0 6px 24px rgba(30, 50, 90, 0.06);
+  box-shadow: var(--shadow-card);
+}
+
+/* The test screen (.test-scope) provides its own full-bleed background and
+   card, so it deliberately steps out of the teacher's card-on-stone shell
+   rather than sitting inside a second nested card. */
+.app-main-bare {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.test-exit-bar {
+  margin-bottom: 18px;
+}
+
+.test-exit-link {
+  color: var(--color-text-muted);
+  font-weight: 700;
+  text-decoration: none;
+  font-family: var(--font-system);
+}
+
+.test-exit-link:hover {
+  color: var(--color-text);
 }
 
 .word-input-row {
@@ -121,6 +170,9 @@ body {
   max-width: 480px;
   font-weight: 700;
   letter-spacing: 0.02em;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
 }
 
 .word-input:focus {
@@ -129,7 +181,7 @@ body {
 
 .empty-hint {
   font-size: 1.2rem;
-  color: #5c6b7a;
+  color: var(--color-text-muted);
   padding: 24px 0;
 }
 
@@ -142,7 +194,7 @@ body {
 .edit-instructions {
   margin: 0 0 18px;
   font-size: 1.05rem;
-  color: #45566a;
+  color: var(--color-text-muted);
 }
 
 .export-bar {
@@ -168,6 +220,7 @@ body {
   cursor: pointer;
   transition: transform 0.08s ease, box-shadow 0.15s ease;
   touch-action: manipulation;
+  font-family: var(--font-system);
 }
 
 .btn:active {
@@ -181,7 +234,7 @@ body {
 }
 
 .btn-toggle {
-  background: #eef2f9;
+  background: var(--color-surface-muted);
   color: var(--color-text);
 }
 
@@ -191,31 +244,31 @@ body {
 }
 
 .btn-secondary {
-  background: #eef2f9;
+  background: var(--color-surface-muted);
   color: var(--color-text);
 }
 
 .btn-secondary:hover {
-  background: #e2e9f4;
+  background: var(--color-surface-muted-hover);
 }
 
 .btn-ghost {
   background: transparent;
-  color: #5c6b7a;
+  color: var(--color-text-muted);
   border: 2px solid var(--color-border);
 }
 
 .btn-danger {
-  background: #fdecec;
+  background: var(--color-danger-bg);
   color: var(--color-danger);
 }
 
 .btn-danger:hover {
-  background: #fbd9d9;
+  background: var(--color-danger-bg-hover);
 }
 
 .btn-tab {
-  background: #eef2f9;
+  background: var(--color-surface-muted);
   color: var(--color-text);
   border-radius: var(--radius-md);
 }
@@ -226,7 +279,7 @@ body {
 }
 
 .btn-chip {
-  background: #eef2f9;
+  background: var(--color-surface-muted);
   color: var(--color-text);
   padding: 8px 16px;
   font-size: 0.95rem;
@@ -234,7 +287,7 @@ body {
 
 .btn-chip.active {
   background: var(--color-accent);
-  color: #4a3300;
+  color: var(--color-accent-contrast);
 }
 
 /* Word stage */
@@ -261,12 +314,14 @@ body {
 
 .zone-chip {
   border: 2px solid var(--color-border);
-  background: #fbfcfe;
+  background: var(--color-surface);
   border-radius: 999px;
   padding: 10px 18px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
+  color: var(--color-text);
+  font-family: var(--font-system);
 }
 
 .zone-chip:hover {
@@ -284,7 +339,7 @@ body {
 .editor-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(20, 28, 40, 0.55);
+  background: var(--overlay-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -293,6 +348,7 @@ body {
 }
 
 .editor-panel {
+  position: relative;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   width: 100%;
@@ -302,11 +358,32 @@ body {
   padding: 24px;
 }
 
+.editor-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.editor-close-btn:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
 .editor-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  padding-right: 44px;
 }
 
 .editor-header h2 {
@@ -335,15 +412,56 @@ body {
 }
 
 .editor-stage-wrap {
+  position: relative;
   border: 3px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
 
+.canvas-delete-btn {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-danger);
+  color: white;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.canvas-delete-btn:hover {
+  filter: brightness(1.08);
+}
+
+.canvas-undo-btn {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.canvas-undo-btn:hover {
+  background: var(--color-surface-muted);
+}
+
 .editor-hint {
   max-width: 420px;
   text-align: center;
-  color: #6a7889;
+  color: var(--color-text-muted);
   font-size: 0.92rem;
   margin-top: 10px;
 }
@@ -357,7 +475,7 @@ body {
 }
 
 .editor-tool-group {
-  background: #f7f9fc;
+  background: var(--color-surface-muted);
   border-radius: var(--radius-md);
   padding: 14px;
   display: flex;
@@ -373,7 +491,7 @@ body {
   margin: 0;
   font-weight: 700;
   font-size: 0.9rem;
-  color: #45566a;
+  color: var(--color-text-muted);
 }
 
 .editor-tabs {
@@ -416,6 +534,9 @@ body {
   border-radius: var(--radius-md);
   border: 2px solid var(--color-border);
   font-size: 1rem;
+  font-family: var(--font-system);
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .emoji-picker-grid {
@@ -428,7 +549,7 @@ body {
 
 .emoji-picker-item {
   border: none;
-  background: white;
+  background: var(--color-surface);
   border-radius: 10px;
   font-size: 1.6rem;
   padding: 6px 0;
@@ -437,12 +558,12 @@ body {
 }
 
 .emoji-picker-item:hover {
-  background: #eef2f9;
+  background: var(--color-surface-muted);
 }
 
 .emoji-picker-empty {
   grid-column: 1 / -1;
-  color: #8593a3;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
 }
 
@@ -493,7 +614,7 @@ body {
   max-width: 420px;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
-  box-shadow: 0 6px 24px rgba(30, 50, 90, 0.08);
+  box-shadow: var(--shadow-card);
   padding: 32px;
   display: flex;
   flex-direction: column;
@@ -507,7 +628,7 @@ body {
 
 .login-subtitle {
   margin: 0 0 12px;
-  color: #5c6b7a;
+  color: var(--color-text-muted);
 }
 
 .login-submit {
@@ -518,7 +639,7 @@ body {
 .login-switch {
   margin: 4px 0 0;
   text-align: center;
-  color: #5c6b7a;
+  color: var(--color-text-muted);
 }
 
 .login-switch a {
@@ -544,7 +665,7 @@ body {
 
 .page-subtitle {
   margin: 0;
-  color: #5c6b7a;
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 
@@ -564,7 +685,7 @@ body {
 }
 
 .form-success {
-  color: #1a7f4b;
+  color: var(--color-success);
   font-weight: 600;
 }
 
@@ -581,25 +702,13 @@ body {
   max-width: 480px;
 }
 
-.save-status {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #5c6b7a;
-}
-
-.save-status-saving {
-  color: var(--color-accent);
-}
-
-.save-status-saved {
-  color: #1a7f4b;
-}
-
-.save-status-error {
-  color: var(--color-danger);
-}
-
 /* Dashboard */
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .dashboard-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -615,6 +724,25 @@ body {
   border: 2px solid var(--color-border);
   text-decoration: none;
   color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+/* The one signature flourish of this identity — a small card-catalog tab
+   peeking out of each tile, like an index card in a drawer. Kept to this
+   one place rather than repeated on every card in the app. */
+.dashboard-tile::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20px;
+  width: 34px;
+  height: 8px;
+  background: var(--color-primary);
+  border-radius: 0 0 6px 6px;
+  opacity: 0.85;
 }
 
 .dashboard-tile:hover {
@@ -628,10 +756,19 @@ body {
 .dashboard-tile-title {
   font-size: 1.2rem;
   font-weight: 700;
+  font-family: var(--font-heading);
 }
 
 .dashboard-tile-description {
-  color: #5c6b7a;
+  color: var(--color-text-muted);
+}
+
+.dashboard-tile-stat {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Card lists (students, words, series) */
@@ -652,6 +789,7 @@ body {
   text-decoration: none;
   color: var(--color-text);
   font-weight: 600;
+  background: var(--color-surface);
 }
 
 .card-list-item:hover {
@@ -667,7 +805,7 @@ body {
 }
 
 .card-list-meta {
-  color: #5c6b7a;
+  color: var(--color-text-muted);
   font-weight: 500;
 }
 
@@ -729,6 +867,8 @@ body {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+  color: var(--color-text);
+  font-family: var(--font-system);
 }
 
 .picker-item:hover {
@@ -736,7 +876,42 @@ body {
 }
 
 .picker-item-selected {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   cursor: default;
+}
+
+.picker-item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quick-word-sentence-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.quick-word-sentence-input {
+  font-size: 0.95rem;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-system);
+  font-weight: 500;
+  width: 100%;
+}
+
+.quick-word-sentence-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
 }
 
 .picker-order {
@@ -773,4 +948,165 @@ body {
   align-items: center;
   gap: 10px;
   font-weight: 600;
+}
+
+/* Series detail — plain word list, numbered phrase list, illustrated cards */
+.plain-word-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.plain-word-link {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.plain-word-link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.phrase-list {
+  margin: 0;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.series-word-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.series-word-item {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  background: var(--color-surface);
+}
+
+.illustrated-preview-frame {
+  width: 100%;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The scale is computed in JS from the canvas' actual measured size (see
+     IllustratedWordPreview) and applied as a transform, so this is just a
+     safety net for the brief moment before that measurement runs — it must
+     NOT also constrain the canvas itself via CSS, or the JS measurement
+     would read the already-shrunk size and compute the wrong scale. */
+  overflow: hidden;
+}
+
+.word-bank-card-link {
+  display: block;
+}
+
+.word-bank-card-link:hover {
+  opacity: 0.85;
+}
+
+/* ============================================================
+   "Clairière" — the child-facing test screen. A calm, sunlit space,
+   deliberately distinct from the teacher's stone-and-teal workshop:
+   every token below is overridden, so every shared component (buttons,
+   inputs, cards, feedback text) restyles itself automatically for
+   anything rendered inside this scope.
+   ============================================================ */
+.test-scope {
+  --color-bg: #eef6f4;
+  --color-surface: #ffffff;
+  --color-surface-muted: #e3f1ed;
+  --color-surface-muted-hover: #d7ebe5;
+  --color-text: #263238;
+  --color-text-muted: #5f7a78;
+  --color-primary: #e0983f;
+  --color-primary-dark: #a5661f;
+  --color-accent: #e0983f;
+  --color-accent-contrast: #2b2013;
+  --color-danger: #c85f38;
+  --color-danger-bg: #fbe6dc;
+  --color-danger-bg-hover: #f7d7c4;
+  --color-success: #3d8a5c;
+  --color-border: #d7ebe6;
+  --radius-lg: 28px;
+  --radius-md: 20px;
+  --radius-sm: 14px;
+  --shadow-card: 0 14px 34px rgba(38, 64, 60, 0.14);
+  --shadow-panel: 0 14px 34px rgba(38, 64, 60, 0.14);
+  --font-system: ui-rounded, "Segoe UI Rounded", "Segoe UI", system-ui, sans-serif;
+  --font-heading: ui-rounded, "Segoe UI Rounded", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-system);
+  background: var(--color-bg);
+  min-height: calc(100vh - 90px);
+  border-radius: var(--radius-lg);
+  padding: 40px 24px;
+}
+
+/* Test session */
+.test-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 34px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.test-header-row {
+  max-width: 560px;
+  margin: 0 auto 22px;
+}
+
+.test-sentence {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.test-answer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.test-feedback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.test-final-score {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.test-hint-illustration {
+  width: 100%;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.test-hint-illustration .illustrated-preview-frame {
+  height: 220px;
 }

@@ -13,6 +13,7 @@ import WordEditorPage from './pages/words/WordEditorPage'
 import SeriesListPage from './pages/series/SeriesListPage'
 import NewSeriesPage from './pages/series/NewSeriesPage'
 import SeriesDetailPage from './pages/series/SeriesDetailPage'
+import TestSessionPage from './pages/students/TestSessionPage'
 import './index.css'
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/students" element={<StudentsListPage />} />
             <Route path="/students/:studentId" element={<StudentDetailPage />} />
             <Route path="/students/:studentId/sessions/:sessionId" element={<SessionDetailPage />} />
+            <Route path="/students/:studentId/assignments/:assignmentId/test" element={<TestSessionPage />} />
             <Route path="/words" element={<WordsBankPage />} />
             <Route path="/words/new" element={<WordEditorPage />} />
             <Route path="/words/:wordId" element={<WordEditorPage />} />
