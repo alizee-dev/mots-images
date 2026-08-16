@@ -38,4 +38,13 @@ const assignmentsToDo = async (studentId) => {
     return result.rows
 }
 
-module.exports = { assignStudentsToSeries, assignmentsByTeacher, assignmentsToDo }
+const getStudentsBySeriesId = async (seriesId) => {
+    const result = await pool.query(`
+        SELECT a.student_id 
+        FROM assignments a
+        WHERE $1 = a.series_id`, [seriesId]
+    )
+    return result.rows
+}
+
+module.exports = { assignStudentsToSeries, assignmentsByTeacher, assignmentsToDo, getStudentsBySeriesId }
