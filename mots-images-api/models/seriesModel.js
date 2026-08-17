@@ -82,4 +82,31 @@ const updateSeriesStatus = async (seriesId, teacher_id) => {
     return result.rows
 }
 
-module.exports = { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail, getSeriesById, editSeriesTitle, updateSeriesStatus}
+const deleteWordFromSeries = async (wordId, seriesId) => {
+    const result = await pool.query(`
+        DELETE FROM series_words
+        WHERE word_id = $1 AND series_id = $2 
+        RETURNING word_id, series_id`, [wordId, seriesId]
+    )
+    console.log(result.rows[0])
+    return result.rows[0]
+}
+
+const changeOrderOfWords = async (wordsDetails, seriesId) => {
+    let newOrder = []
+    for (let details of wordsDetails) {
+        const result = await pool.query(`
+        UPDATE series_words
+        SET "order" = $1
+        WHERE word_id = $2 AND series_id = $3
+        RETURNING word_id, "order"`, [details.newOrder, details.wordId, seriesId])
+        
+        newOrder.push(result.rows[0])
+    }
+    console.log(newOrder);
+    return newOrder
+}
+
+
+
+module.exports = { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail, getSeriesById, editSeriesTitle, updateSeriesStatus, deleteWordFromSeries, changeOrderOfWords}

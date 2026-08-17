@@ -222,6 +222,17 @@ No body required.
 Returns (200): `{ id, is_active }`
 Returns (403) if the series doesn't belong to the authenticated teacher.
 
+**DELETE /series/:seriesId/words/:wordId**
+Removes a word from a series (only the link, the word itself and its illustration remain untouched).
+Returns (200): `{ word_id, series_id }`
+Returns (404) if no matching series is found for this teacher.
+
+**PUT /series/:seriesId/words/order**
+Updates the display order of words within a series.
+Body: `{ wordsDetails: [{ wordId: number, newOrder: number }, ...] }`
+Returns (200): `[{ word_id, order }, ...]`
+Returns (404) if no matching series is found for this teacher.
+
 ### Assignments
 
 **POST /assignments/:seriesId/students**

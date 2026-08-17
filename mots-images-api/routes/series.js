@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const { createSeriesController, linkWordsToSeriesController, seriesByTeacherController, getSeriesDetailController, editSeriesTitleController, updateSeriesStatusController } = require('../controllers/seriesController')
+const { createSeriesController, linkWordsToSeriesController, seriesByTeacherController, getSeriesDetailController, editSeriesTitleController, updateSeriesStatusController, deleteWordFromSeriesController, changeOrderOfWordsController } = require('../controllers/seriesController')
 const { authenticateTeacher } = require('../middleware/auth')
 
  
@@ -10,5 +10,7 @@ router.get('/', authenticateTeacher, seriesByTeacherController)
 router.get('/:seriesId', authenticateTeacher, getSeriesDetailController)
 router.put('/:seriesId', authenticateTeacher, editSeriesTitleController)
 router.put('/:seriesId/status', authenticateTeacher, updateSeriesStatusController)
+router.delete('/:seriesId/words/:wordId', authenticateTeacher, deleteWordFromSeriesController)
+router.put('/:seriesId/words/order', authenticateTeacher, changeOrderOfWordsController)
 
 module.exports = router
