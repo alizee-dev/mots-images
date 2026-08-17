@@ -881,6 +881,51 @@ h3 {
   font-weight: 700;
 }
 
+/* Student progression chart */
+.chart-card {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  padding: 16px 12px 12px;
+}
+
+.progress-tooltip {
+  background: var(--color-text);
+  color: var(--color-surface);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: var(--shadow-panel);
+}
+
+.progress-tooltip strong {
+  font-size: 0.85rem;
+}
+
+.legend-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 12px 4px 0;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 /* Data table */
 .data-table {
   width: 100%;
