@@ -11,3 +11,7 @@ export function createWord(text, sentence) {
 export function updateWord(wordId, sentence, zones) {
   return apiFetch(`/words/${wordId}`, { method: 'PUT', body: { sentence, zones } })
 }
+
+export function removeWordFromBank(wordId) {
+  return apiFetch(`/words/${wordId}/status`, { method: 'PUT' })
+}

@@ -53,10 +53,11 @@ h3 {
   font-family: var(--font-heading);
 }
 
-/* Scoped deliberately to child-facing content only (illustrated words,
-   fill-in-the-blank sentences, the test screen) — never to the teacher's
-   own working UI (menus, buttons, forms). Applied explicitly per-element
-   via this class, not inherited from a wrapper. */
+/* The dyslexia-friendly face is mandatory — not a toggle — on every piece
+   of text a child actually reads or writes: illustrated word cards
+   (applied via the fontFamily prop on WordStage/IllustratedWordPreview,
+   not this class), series phrase lists, and the whole test screen. Never
+   applied to the teacher's own working UI (menus, buttons, forms). */
 .font-dys {
   font-family: 'OpenDyslexic', var(--font-system);
 }
@@ -69,11 +70,20 @@ h3 {
 
 .app-header {
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+/* Logo and "Déconnexion" always share this top row, kept separate from the
+   nav below so a wrapping nav (narrow screens, more links later) never
+   pushes the logout button down out of the top-right corner. */
+.app-header-top {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  margin-bottom: 24px;
 }
 
 .app-header h1 {
@@ -679,6 +689,22 @@ h3 {
   text-decoration: none;
 }
 
+.text-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 1rem;
+  font-family: var(--font-system);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.text-link-btn:hover {
+  text-decoration: underline;
+}
+
 .form-error {
   color: var(--color-danger);
   font-weight: 600;
@@ -794,6 +820,47 @@ h3 {
 
 .card-list-item:hover {
   border-color: var(--color-primary);
+}
+
+.card-list-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-list-row .card-list-item {
+  flex: 1;
+}
+
+/* Quiet by default — a plain grey circle that only reveals itself as a
+   destructive action (red) on hover/focus, so a list of series doesn't sit
+   under a permanent row of red buttons. */
+.icon-btn-danger {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn-danger:hover,
+.icon-btn-danger:focus-visible {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.icon-btn-danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .card-list-item-row {
@@ -950,15 +1017,36 @@ h3 {
   font-weight: 600;
 }
 
+.checkbox-row-disabled {
+  color: var(--color-text-muted);
+  font-weight: 500;
+  cursor: not-allowed;
+}
+
+.checkbox-row-note {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-style: italic;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
 /* Series detail — plain word list, numbered phrase list, illustrated cards */
-.plain-word-list {
+.word-chain {
   margin: 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  background: var(--color-surface);
   font-size: 1.1rem;
   font-weight: 600;
+  line-height: 1.9;
+  text-align: center;
+}
+
+.word-chain-sep {
+  color: var(--color-accent);
+  font-weight: 700;
 }
 
 .plain-word-link {
@@ -977,6 +1065,115 @@ h3 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Series detail — full word-list editing (reorder, remove, add, edit phrase) */
+.series-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Neutral by default, tints toward the primary color on hover/focus — same
+   "quiet until needed" logic as .icon-btn-danger, just for a non-destructive
+   action so it never borrows the danger palette. */
+.icon-btn-edit {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn-edit:hover,
+.icon-btn-edit:focus-visible {
+  background: var(--color-surface-muted);
+  color: var(--color-primary);
+}
+
+.word-chain-edit-wrap {
+  position: relative;
+}
+
+.word-chain-edit-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.word-chain-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.series-edit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.series-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.series-edit-order {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.series-edit-order .btn-chip {
+  padding: 1px 8px;
+  line-height: 1.5;
+}
+
+.series-edit-word-link {
+  flex: 0 0 auto;
+  min-width: 84px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.series-edit-word-link:hover {
+  text-decoration: underline;
+}
+
+.series-edit-sentence-input {
+  flex: 1;
+  min-width: 160px;
+  font-size: 0.98rem;
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+.series-edit-sentence-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
 }
 
 .series-word-list {
@@ -1003,11 +1200,9 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* The scale is computed in JS from the canvas' actual measured size (see
-     IllustratedWordPreview) and applied as a transform, so this is just a
-     safety net for the brief moment before that measurement runs — it must
-     NOT also constrain the canvas itself via CSS, or the JS measurement
-     would read the already-shrunk size and compute the wrong scale. */
+  /* IllustratedWordPreview computes a fontSize that keeps the canvas within
+     these same dimensions, so this shouldn't ever need to clip anything —
+     kept purely as a defensive fallback, not the sizing mechanism itself. */
   overflow: hidden;
 }
 
@@ -1017,6 +1212,103 @@ h3 {
 
 .word-bank-card-link:hover {
   opacity: 0.85;
+}
+
+.selection-count {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.word-bank-item {
+  position: relative;
+}
+
+.word-bank-item.selected {
+  border-color: var(--color-primary);
+  background: var(--color-surface-muted);
+}
+
+/* Hidden until the card is hovered/focused, so the grid isn't lined with
+   red buttons at rest — same "quiet until needed" treatment as the trash
+   icon on series rows. */
+.word-bank-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  opacity: 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.word-bank-item:hover .word-bank-delete-btn,
+.word-bank-delete-btn:focus-visible {
+  opacity: 1;
+}
+
+/* Touch devices have no hover to reveal the button on — keep it faintly
+   present instead of unreachable. */
+@media (hover: none) {
+  .word-bank-delete-btn {
+    opacity: 0.85;
+  }
+}
+
+.word-bank-card-select {
+  display: block;
+  position: relative;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.word-bank-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: white;
+}
+
+.word-bank-item.selected .word-bank-checkbox {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.undo-toast-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.undo-toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  align-self: flex-start;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-weight: 600;
+  font-size: 0.92rem;
 }
 
 /* ============================================================

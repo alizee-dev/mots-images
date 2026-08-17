@@ -93,7 +93,7 @@ function ZoneIllustration({ zone, frame }) {
 const WordStage = forwardRef(function WordStage(
   {
     text,
-    fontFamily,
+    fontFamily = 'OpenDyslexic',
     fontSize = 130,
     zones,
     letterColors = {},

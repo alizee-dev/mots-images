@@ -63,6 +63,33 @@ export function measureGlyphBox(char, fontSize) {
   return { width, height }
 }
 
+// The full pixel footprint a word would occupy at a given fontSize,
+// including any zone illustrations that spill out past the letter row
+// itself (see getZoneFrame) — the same math WordStage uses to size its own
+// canvas, factored out so a fitting fontSize can be worked out in advance
+// (see IllustratedWordPreview) without ever rendering the word first.
+export function computeWordBounds(text, zones, fontFamily, fontSize) {
+  const { letters, totalWidth } = measureWord(text, fontFamily, fontSize)
+  const boxHeight = fontSize * LETTER_BOX_RATIO
+  const wordWidth = Math.max(totalWidth, fontSize)
+
+  let minX = 0
+  let maxX = wordWidth
+  let minY = 0
+  let maxY = boxHeight
+  ;(zones || []).forEach((zone) => {
+    const rect = computeZoneRect(zone, letters, fontSize)
+    if (!rect) return
+    const frame = getZoneFrame(rect)
+    minX = Math.min(minX, frame.x)
+    maxX = Math.max(maxX, frame.x + frame.size)
+    minY = Math.min(minY, frame.y)
+    maxY = Math.max(maxY, frame.y + frame.size)
+  })
+
+  return { width: maxX - minX, height: maxY - minY }
+}
+
 export const DEFAULT_CROP = { x: 0, y: 0, width: 1, height: 1 }
 
 // Converts a crop expressed as fractions of an item's own bounding box into

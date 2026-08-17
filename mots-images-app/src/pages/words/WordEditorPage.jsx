@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
-import { jsPDF } from 'jspdf'
 import WordStage from '../../components/WordStage'
 import IllustrationEditor from '../../components/IllustrationEditor'
 import { createWord, getWords, updateWord } from '../../api/words'
 import { measureWord } from '../../wordGeometry'
 
-const EXPORT_PIXEL_RATIO = 2
+const FONT_FAMILY = 'OpenDyslexic'
 const EDIT_BASE_FONT_SIZE = 130
 const PREVIEW_BASE_FONT_SIZE = 170
 const MIN_FIT_FONT_SIZE = 20
@@ -41,7 +40,6 @@ export default function WordEditorPage() {
   const { wordId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { fontFamily, theme, dyslexicFont } = useOutletContext()
   const isNew = !wordId
   const fromSeriesId = searchParams.get('fromSeriesId')
   const fromSeries = fromSeriesId
@@ -80,12 +78,16 @@ export default function WordEditorPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
+  // Local to this page: the only place a card's dark/light background
+  // actually matters is the one you're about to print or hand to a child,
+  // not a global site-wide setting.
+  const [theme, setTheme] = useState('light')
+
   const [mode, setMode] = useState('edit')
   const [activeZoneId, setActiveZoneId] = useState(null)
   const [draftNewZone, setDraftNewZone] = useState(null)
   const [clipboard, setClipboard] = useState(null)
   const loadedOnce = useRef(false)
-  const previewStageRef = useRef(null)
   const previewContainerRef = useRef(null)
   const editContainerRef = useRef(null)
 
@@ -129,12 +131,20 @@ export default function WordEditorPage() {
       (sentence !== savedSnapshot.sentence || JSON.stringify(zones) !== JSON.stringify(savedSnapshot.zones))
   )
 
+  // Saving always ends by taking the teacher back to the word bank, where
+  // the word they were just working on is right there — there's nothing
+  // else to do on this page once it's saved. If there's nothing new to
+  // persist, it skips the network round trip and just navigates.
   const handleSaveWord = async () => {
+    if (!hasUnsavedChanges) {
+      navigate('/words')
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
       await updateWord(wordId, sentence, zones)
-      setSavedSnapshot({ sentence, zones })
+      navigate('/words')
     } catch (err) {
       setSaveError(err.message)
     } finally {
@@ -142,8 +152,8 @@ export default function WordEditorPage() {
     }
   }
 
-  const editFontSize = useFitFontSize(wordText, fontFamily, EDIT_BASE_FONT_SIZE, editContainerRef)
-  const previewFontSize = useFitFontSize(wordText, fontFamily, PREVIEW_BASE_FONT_SIZE, previewContainerRef)
+  const editFontSize = useFitFontSize(wordText, FONT_FAMILY, EDIT_BASE_FONT_SIZE, editContainerRef)
+  const previewFontSize = useFitFontSize(wordText, FONT_FAMILY, PREVIEW_BASE_FONT_SIZE, previewContainerRef)
 
   const letterColors = useMemo(() => {
     const map = {}
@@ -227,33 +237,6 @@ export default function WordEditorPage() {
     setActiveZoneId(null)
   }, [])
 
-  const handleDownloadPng = () => {
-    const stage = previewStageRef.current
-    if (!stage) return
-    const dataUrl = stage.toDataURL({ pixelRatio: EXPORT_PIXEL_RATIO, mimeType: 'image/png' })
-    const link = document.createElement('a')
-    link.href = dataUrl
-    link.download = `${wordText || 'mot'}-images.png`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-  }
-
-  const handleDownloadPdf = () => {
-    const stage = previewStageRef.current
-    if (!stage) return
-    const dataUrl = stage.toDataURL({ pixelRatio: EXPORT_PIXEL_RATIO, mimeType: 'image/png' })
-    const w = stage.width()
-    const h = stage.height()
-    const pdf = new jsPDF({
-      orientation: w > h ? 'landscape' : 'portrait',
-      unit: 'px',
-      format: [w, h],
-    })
-    pdf.addImage(dataUrl, 'PNG', 0, 0, w, h)
-    pdf.save(`${wordText || 'mot'}-images.pdf`)
-  }
-
   const handlePrint = () => {
     window.print()
   }
@@ -298,30 +281,24 @@ export default function WordEditorPage() {
 
   return (
     <div className="page">
-      {fromSeries && (
+      {fromSeries ? (
         <p className="breadcrumb">
           <Link to={`/series/${fromSeries.seriesId}`} state={{ title: fromSeries.title }}>
             ← Retour à {fromSeries.title ? `« ${fromSeries.title} »` : 'la série'}
           </Link>
+        </p>
+      ) : (
+        <p className="breadcrumb">
+          <Link to="/words">← Retour à la banque de mots</Link>
         </p>
       )}
       <div className="page-header-row">
         <h2>{wordText}</h2>
         <div className="app-header-actions">
           {saveError && <span className="form-error">{saveError}</span>}
-          <button
-            type="button"
-            className="btn btn-toggle active"
-            onClick={handleSaveWord}
-            disabled={!hasUnsavedChanges || saving}
-          >
+          <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
             {saving ? 'Enregistrement…' : '💾 Enregistrer'}
           </button>
-          {!fromSeries && (
-            <button type="button" className="btn btn-secondary" onClick={() => navigate('/words/new')}>
-              ➕ Nouveau mot
-            </button>
-          )}
         </div>
       </div>
 
@@ -332,7 +309,6 @@ export default function WordEditorPage() {
           <div className="word-stage-fit" ref={editContainerRef}>
             <WordStage
               text={wordText}
-              fontFamily={fontFamily}
               fontSize={editFontSize}
               zones={zones}
               letterColors={letterColors}
@@ -348,7 +324,7 @@ export default function WordEditorPage() {
           <input
             id="word-sentence"
             type="text"
-            className={`word-input ${dyslexicFont ? 'font-dys' : ''}`}
+            className="word-input"
             value={sentence}
             onChange={(e) => setSentence(e.target.value)}
           />
@@ -363,25 +339,24 @@ export default function WordEditorPage() {
             </div>
           )}
 
-          <div className="mode-row no-print">
-            <button type="button" className="btn btn-tab active" onClick={() => setMode('preview')}>
-              👁️ Aperçu final
-            </button>
-          </div>
+          <button type="button" className="text-link-btn no-print" onClick={() => setMode('preview')}>
+            Aperçu final →
+          </button>
         </>
       )}
 
       {mode === 'preview' && (
         <>
           <div className="export-bar no-print">
-            <button type="button" className="btn btn-tab active" onClick={() => setMode('edit')}>
-              ✏️ Retour à l’édition
+            <button type="button" className="text-link-btn" onClick={() => setMode('edit')}>
+              ← Retour à l’édition
             </button>
-            <button type="button" className="btn btn-secondary" onClick={handleDownloadPng}>
-              💾 Télécharger (PNG)
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={handleDownloadPdf}>
-              📄 Télécharger (PDF)
+            <button
+              type="button"
+              className="btn btn-chip"
+              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            >
+              {theme === 'dark' ? '☀️ Clair' : '🌙 Sombre'}
             </button>
             <button type="button" className="btn btn-secondary" onClick={handlePrint}>
               🖨️ Imprimer
@@ -389,9 +364,7 @@ export default function WordEditorPage() {
           </div>
           <div className="preview-wrap print-area" ref={previewContainerRef}>
             <WordStage
-              ref={previewStageRef}
               text={wordText}
-              fontFamily={fontFamily}
               fontSize={previewFontSize}
               zones={zones}
               letterColors={letterColors}
@@ -406,7 +379,7 @@ export default function WordEditorPage() {
         <IllustrationEditor
           word={{ text: wordText }}
           zone={activeZone}
-          fontFamily={fontFamily}
+          fontFamily={FONT_FAMILY}
           letterColor={activeLetterColor}
           clipboard={clipboard}
           onCopy={setClipboard}

@@ -14,8 +14,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
 
   if (isAuthenticated) {
-    const from = location.state?.from?.pathname || '/'
-    return <Navigate to={from} replace />
+    return <Navigate to="/" replace />
   }
 
   const handleSubmit = async (e) => {

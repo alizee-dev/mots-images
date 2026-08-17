@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { createWord, getWords, updateWord } from '../../api/words'
 import { addWordsToSeries, createSeries } from '../../api/series'
 
@@ -126,6 +126,9 @@ export default function NewSeriesPage() {
   if (step === 'title') {
     return (
       <div className="page">
+        <p className="breadcrumb">
+          <Link to="/series">← Mes séries</Link>
+        </p>
         <h2>Nouvelle série</h2>
         <form className="word-create-form" onSubmit={handleCreateTitle}>
           <label htmlFor="series-title" className="word-input-label">
@@ -150,6 +153,9 @@ export default function NewSeriesPage() {
 
   return (
     <div className="page">
+      <p className="breadcrumb">
+        <Link to="/series">← Mes séries</Link>
+      </p>
       <h2>{title}</h2>
       <p className="page-subtitle">Choisis les mots à ajouter à cette série, dans l’ordre souhaité.</p>
 

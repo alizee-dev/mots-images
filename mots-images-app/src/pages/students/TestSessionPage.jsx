@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useOutletContext, useParams } from 'react-router-dom'
+import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { getPendingAssignments } from '../../api/assignments'
 import { getSeriesDetail } from '../../api/series'
 import { getMyStudents } from '../../api/students'
 import { submitTestSession } from '../../api/testSessions'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
+import { TestGuardContext } from '../../testGuardContext'
+
+const EXIT_WARNING = 'Quitter maintenant abandonnera ce test : la progression ne sera pas enregistrée. Continuer ?'
 
 function normalize(value) {
   return value.trim().toLowerCase()
@@ -36,7 +39,7 @@ function maskWordInSentence(sentence, text) {
 export default function TestSessionPage() {
   const { studentId, assignmentId } = useParams()
   const location = useLocation()
-  const { fontFamily, theme, dyslexicFont } = useOutletContext()
+  const { setTestGuard } = useContext(TestGuardContext)
 
   const [studentName, setStudentName] = useState(location.state?.studentName || null)
   const [seriesTitle, setSeriesTitle] = useState(null)
@@ -101,6 +104,25 @@ export default function TestSessionPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, assignmentId])
+
+  // Guards both in-app navigation (the "← Quitter le test" link, via
+  // TestGuardContext) and closing the tab/browser (via beforeunload) for as
+  // long as there's a test in progress whose result hasn't been submitted
+  // yet — nothing to protect before words have loaded or after `finished`.
+  useEffect(() => {
+    const active = Boolean(words && words.length > 0 && !finished)
+    setTestGuard(active ? EXIT_WARNING : null)
+    if (!active) return undefined
+    const handleBeforeUnload = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      setTestGuard(null)
+    }
+  }, [words, finished, setTestGuard])
 
   const currentWord = words && words[currentIndex]
   const maskedSentence = currentWord ? maskWordInSentence(currentWord.sentence, currentWord.text) : null
@@ -233,14 +255,14 @@ export default function TestSessionPage() {
       </div>
 
       <div className="test-card">
-        <p className={`test-sentence ${dyslexicFont ? 'font-dys' : ''}`}>{maskedSentence || 'Écris le mot :'}</p>
+        <p className="test-sentence font-dys">{maskedSentence || 'Écris le mot :'}</p>
 
         {!resolved && (
           <form className="test-answer-form" onSubmit={handleSubmitAnswer}>
             <input
               ref={inputRef}
               type="text"
-              className={`word-input ${dyslexicFont ? 'font-dys' : ''}`}
+              className="word-input font-dys"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               autoFocus
@@ -264,16 +286,9 @@ export default function TestSessionPage() {
               </p>
             ) : (
               <>
-                <p className={`form-error ${dyslexicFont ? 'font-dys' : ''}`}>
-                  😕 Ce n’était pas ça. Le mot était : {currentWord.text}
-                </p>
+                <p className="form-error font-dys">😕 Ce n’était pas ça. Le mot était : {currentWord.text}</p>
                 <div className="test-hint-illustration">
-                  <IllustratedWordPreview
-                    text={currentWord.text}
-                    zones={currentWord.zones}
-                    theme={theme}
-                    fontFamily={fontFamily}
-                  />
+                  <IllustratedWordPreview text={currentWord.text} zones={currentWord.zones} />
                 </div>
               </>
             )}

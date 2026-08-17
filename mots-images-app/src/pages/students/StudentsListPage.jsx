@@ -34,6 +34,9 @@ export default function StudentsListPage() {
 
   return (
     <div className="page">
+      <p className="breadcrumb">
+        <Link to="/">← Accueil</Link>
+      </p>
       <h2>Mes élèves</h2>
 
       <form className="inline-form" onSubmit={handleSubmit}>

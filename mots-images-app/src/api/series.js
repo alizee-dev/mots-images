@@ -23,3 +23,11 @@ export function updateSeriesTitle(seriesId, title) {
 export function archiveSeries(seriesId) {
   return apiFetch(`/series/${seriesId}/status`, { method: 'PUT' })
 }
+
+export function removeWordFromSeries(seriesId, wordId) {
+  return apiFetch(`/series/${seriesId}/words/${wordId}`, { method: 'DELETE' })
+}
+
+export function updateSeriesWordsOrder(seriesId, wordsDetails) {
+  return apiFetch(`/series/${seriesId}/words/order`, { method: 'PUT', body: { wordsDetails } })
+}

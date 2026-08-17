@@ -182,6 +182,12 @@ Returns (200): `{ id, text, sentence, zones }`
 Returns (403) if the word doesn't belong to the authenticated teacher.
 Returns (404) if no word matches (defensive check, in addition to the 403 check).
 
+**PUT /words/:wordId/status**
+Removes a word from the teacher's active bank (soft delete: sets `in_bank` to `false`). The word remains fully intact and visible in any series that already references it — only its visibility in GET /words is affected.
+No body required.
+Returns (200): `{ id, in_bank }`
+Returns (404) if no matching word is found for this teacher.
+
 ### Series
 
 **POST /series**
@@ -215,6 +221,17 @@ Soft-deletes a series (sets `is_active` to `false`). The series no longer appear
 No body required.
 Returns (200): `{ id, is_active }`
 Returns (403) if the series doesn't belong to the authenticated teacher.
+
+**DELETE /series/:seriesId/words/:wordId**
+Removes a word from a series (only the link, the word itself and its illustration remain untouched).
+Returns (200): `{ word_id, series_id }`
+Returns (404) if no matching series is found for this teacher.
+
+**PUT /series/:seriesId/words/order**
+Updates the display order of words within a series.
+Body: `{ wordsDetails: [{ wordId: number, newOrder: number }, ...] }`
+Returns (200): `[{ word_id, order }, ...]`
+Returns (404) if no matching series is found for this teacher.
 
 ### Assignments
 
