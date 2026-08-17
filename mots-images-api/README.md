@@ -182,6 +182,12 @@ Returns (200): `{ id, text, sentence, zones }`
 Returns (403) if the word doesn't belong to the authenticated teacher.
 Returns (404) if no word matches (defensive check, in addition to the 403 check).
 
+**PUT /words/:wordId/status**
+Removes a word from the teacher's active bank (soft delete: sets `in_bank` to `false`). The word remains fully intact and visible in any series that already references it — only its visibility in GET /words is affected.
+No body required.
+Returns (200): `{ id, in_bank }`
+Returns (404) if no matching word is found for this teacher.
+
 ### Series
 
 **POST /series**

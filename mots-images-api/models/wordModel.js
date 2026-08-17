@@ -12,11 +12,10 @@ const getWords = async (teacherId) => {
     const result = await pool.query(
         `SELECT id, text, sentence, zones 
         FROM words
-        WHERE teacher_id = $1`, [teacherId]
+        WHERE teacher_id = $1 AND in_bank = true`, [teacherId]
     )
     console.log(result.rows);
-    return result.rows
-      
+    return result.rows     
 }
 
 const wordForStudents = async (wordId, studentsId) => {
@@ -46,4 +45,15 @@ const updateWord = async (wordId, zones, sentence, teacherId) => {
     return result.rows[0]
 }
 
-module.exports = { createWord, getWords, wordForStudents, updateWord }
+const deleteWordFromBank = async (wordId, teacherId) => {
+    const result = await pool.query(`
+        UPDATE words
+        SET in_bank = false
+        WHERE id = $1 AND teacher_id = $2
+        RETURNING id, in_bank`, [wordId, teacherId]
+    )
+    console.log(result.rows);
+    return result.rows
+}
+
+module.exports = { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank }

@@ -1,4 +1,4 @@
-const { createWord, getWords, wordForStudents, updateWord } = require('../models/wordModel')
+const { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank } = require('../models/wordModel')
 
 const createWordController = async (req, res) => {
     try {
@@ -76,4 +76,22 @@ const updateWordController = async (req, res) => {
     }
 }
 
-module.exports = { createWordController, getWordsController, postWordForStudentsController, updateWordController}
+const deleteWordFromBankController = async (req, res) => {
+    const wordId = req.params.wordId
+    const teacherId = req.teacherId
+
+    try {
+        const response = await deleteWordFromBank(wordId, teacherId)
+
+        if(response.length > 0) {
+            res.status(200).json(response)
+        } else {
+            return res.status(404).json('Word not found')
+        }
+        
+    } catch (error) {
+        res.status(500).json(error.message)
+    }
+}
+
+module.exports = { createWordController, getWordsController, postWordForStudentsController, updateWordController, deleteWordFromBankController}
