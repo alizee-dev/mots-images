@@ -519,7 +519,10 @@ h3 {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 3px solid transparent;
+  /* Always a visible ring, not just on .active — a white swatch would
+     otherwise be nearly invisible against the tool panel's own light
+     background until selected. */
+  border: 3px solid var(--color-border);
   cursor: pointer;
 }
 

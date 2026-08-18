@@ -4,22 +4,29 @@ import { v4 as uuid } from 'uuid'
 import WordStage from '../../components/WordStage'
 import IllustrationEditor from '../../components/IllustrationEditor'
 import { createWord, getWords, updateWord } from '../../api/words'
-import { measureWord } from '../../wordGeometry'
+import { computeWordBounds, LETTER_GAP_RATIO } from '../../wordGeometry'
+import { ensureZonesImagesAreCompressed } from '../../imageCompression'
 
 const FONT_FAMILY = 'OpenDyslexic'
 const EDIT_BASE_FONT_SIZE = 130
 const PREVIEW_BASE_FONT_SIZE = 170
 const MIN_FIT_FONT_SIZE = 20
 
-function useFitFontSize(text, fontFamily, baseFontSize, containerRef) {
+// Fits against the word's full rendered footprint (letters *and* any zone
+// illustration that spills past its own letter's box — see
+// wordGeometry.computeWordBounds), not just the text width. Fitting to text
+// width alone let a wide illustration overflow the container and get
+// clipped by its overflow-x:hidden, since nothing accounted for the extra
+// space that illustration actually needs.
+function useFitFontSize(text, zones, fontFamily, baseFontSize, containerRef) {
   const [fontSize, setFontSize] = useState(baseFontSize)
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     function update() {
       const available = el.clientWidth - 80
-      const { totalWidth } = measureWord(text, fontFamily, baseFontSize)
-      const natural = Math.max(totalWidth, baseFontSize)
+      const { width } = computeWordBounds(text, zones, fontFamily, baseFontSize)
+      const natural = Math.max(width, baseFontSize)
       const next = natural > available ? Math.max(MIN_FIT_FONT_SIZE, baseFontSize * (available / natural)) : baseFontSize
       setFontSize(next)
     }
@@ -28,7 +35,7 @@ function useFitFontSize(text, fontFamily, baseFontSize, containerRef) {
     ro.observe(el)
     return () => ro.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, fontFamily, baseFontSize, containerRef.current])
+  }, [text, zones, fontFamily, baseFontSize, containerRef.current])
   return fontSize
 }
 
@@ -143,7 +150,13 @@ export default function WordEditorPage() {
     setSaving(true)
     setSaveError(null)
     try {
-      await updateWord(wordId, sentence, zones)
+      // A safety net for any image that ended up in this word before
+      // upload-time compression existed (or from any other path that
+      // skipped it) — re-compresses anything still oversized right before
+      // sending, so saving never depends on remembering to re-upload it.
+      const { zones: compressedZones, changed } = await ensureZonesImagesAreCompressed(zones, sentence)
+      if (changed) setZones(compressedZones)
+      await updateWord(wordId, sentence, compressedZones)
       navigate('/words')
     } catch (err) {
       setSaveError(err.message)
@@ -152,8 +165,8 @@ export default function WordEditorPage() {
     }
   }
 
-  const editFontSize = useFitFontSize(wordText, FONT_FAMILY, EDIT_BASE_FONT_SIZE, editContainerRef)
-  const previewFontSize = useFitFontSize(wordText, FONT_FAMILY, PREVIEW_BASE_FONT_SIZE, previewContainerRef)
+  const editFontSize = useFitFontSize(wordText, zones, FONT_FAMILY, EDIT_BASE_FONT_SIZE, editContainerRef)
+  const previewFontSize = useFitFontSize(wordText, zones, FONT_FAMILY, PREVIEW_BASE_FONT_SIZE, previewContainerRef)
 
   const letterColors = useMemo(() => {
     const map = {}
@@ -201,6 +214,35 @@ export default function WordEditorPage() {
     setActiveZoneId(null)
   }, [])
 
+  // Dragging a letter all the way back to its natural position is the reset
+  // gesture — no separate "reset spacing" control needed. A gap at (or very
+  // near) the default is treated as "no override" rather than stored
+  // explicitly, so a letter that was only ever repositioned (never
+  // illustrated) doesn't linger as a zone once it's back to normal.
+  const handleGapChange = useCallback((letterIndex, gapFrac) => {
+    setZones((zs) => {
+      const isDefault = gapFrac == null || Math.abs(gapFrac - LETTER_GAP_RATIO) < 0.001
+      const existing = zs.find((z) => z.letterIndex === letterIndex)
+      if (isDefault) {
+        if (!existing) return zs
+        const rest = { ...existing }
+        delete rest.gapBeforeFrac
+        const stillHasContent =
+          rest.illustration.strokes.length > 0 ||
+          rest.illustration.stickers.length > 0 ||
+          rest.illustration.images.length > 0 ||
+          !!rest.letterColor
+        return stillHasContent
+          ? zs.map((z) => (z.letterIndex === letterIndex ? rest : z))
+          : zs.filter((z) => z.letterIndex !== letterIndex)
+      }
+      if (existing) {
+        return zs.map((z) => (z.letterIndex === letterIndex ? { ...z, gapBeforeFrac: gapFrac } : z))
+      }
+      return [...zs, { id: uuid(), letterIndex, letterColor: null, illustration: emptyIllustration(), gapBeforeFrac: gapFrac }]
+    })
+  }, [])
+
   const saveZone = useCallback(
     (illustration, letterColor) => {
       if (!activeZone) return
@@ -214,7 +256,8 @@ export default function WordEditorPage() {
         illustration.strokes.length === 0 &&
         illustration.stickers.length === 0 &&
         illustration.images.length === 0 &&
-        !letterColor
+        !letterColor &&
+        typeof activeZone.gapBeforeFrac !== 'number'
       setZones((zs) => {
         if (isEmpty) return zs.filter((z) => z.id !== activeZone.id)
         const exists = zs.some((z) => z.id === activeZone.id)
@@ -236,6 +279,18 @@ export default function WordEditorPage() {
     setDraftNewZone(null)
     setActiveZoneId(null)
   }, [])
+
+  // Same as saving from the illustration editor, but also jumps straight to
+  // the final preview instead of dropping back to the letter row — so
+  // checking the result doesn't require closing the modal and hunting for
+  // the preview button first.
+  const saveZoneAndPreview = useCallback(
+    (illustration, letterColor) => {
+      saveZone(illustration, letterColor)
+      setMode('preview')
+    },
+    [saveZone]
+  )
 
   const handlePrint = () => {
     window.print()
@@ -296,6 +351,11 @@ export default function WordEditorPage() {
         <h2>{wordText}</h2>
         <div className="app-header-actions">
           {saveError && <span className="form-error">{saveError}</span>}
+          {mode === 'edit' && (
+            <button type="button" className="btn btn-secondary" onClick={() => setMode('preview')}>
+              👁️ Aperçu
+            </button>
+          )}
           <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
             {saving ? 'Enregistrement…' : '💾 Enregistrer'}
           </button>
@@ -304,7 +364,10 @@ export default function WordEditorPage() {
 
       {mode === 'edit' && (
         <>
-          <p className="edit-instructions no-print">👉 Clique sur une lettre pour l’illustrer et choisir sa couleur.</p>
+          <p className="edit-instructions no-print">
+            👉 Clique sur une lettre pour l’illustrer et choisir sa couleur. Glisse-la vers la précédente pour les
+            rapprocher (et la faire glisser jusqu’au bout pour annuler).
+          </p>
 
           <div className="word-stage-fit" ref={editContainerRef}>
             <WordStage
@@ -315,6 +378,7 @@ export default function WordEditorPage() {
               theme={theme}
               interactive
               onSelectLetter={openLetterZone}
+              onGapChange={handleGapChange}
             />
           </div>
 
@@ -338,10 +402,6 @@ export default function WordEditorPage() {
               ))}
             </div>
           )}
-
-          <button type="button" className="text-link-btn no-print" onClick={() => setMode('preview')}>
-            Aperçu final →
-          </button>
         </>
       )}
 
@@ -379,11 +439,13 @@ export default function WordEditorPage() {
         <IllustrationEditor
           word={{ text: wordText }}
           zone={activeZone}
+          zones={zones}
           fontFamily={FONT_FAMILY}
           letterColor={activeLetterColor}
           clipboard={clipboard}
           onCopy={setClipboard}
           onSave={saveZone}
+          onPreview={saveZoneAndPreview}
           onDeleteZone={deleteZone}
           onClose={closeEditor}
         />

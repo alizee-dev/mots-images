@@ -8,22 +8,27 @@ export const ZONE_FRAME_ZOOM = 3
 // Lays out a word letter by letter. Coordinates scale linearly with fontSize,
 // so geometry captured at one fontSize can be re-expressed at any other size
 // just by multiplying/dividing by fontSize.
-export function measureWord(text, fontFamily, fontSize) {
+export function measureWord(text, fontFamily, fontSize, zones = []) {
   const chars = Array.from(text || '')
   const letters = []
   let cursorX = 0
   if (measureCtx) {
     measureCtx.font = `700 ${fontSize}px "${fontFamily}"`
   }
-  for (const char of chars) {
+  chars.forEach((char, i) => {
+    if (i > 0) {
+      const zone = zones.find((z) => z.letterIndex === i)
+      const gapFrac = zone && typeof zone.gapBeforeFrac === 'number' ? zone.gapBeforeFrac : LETTER_GAP_RATIO
+      cursorX += fontSize * gapFrac
+    }
     const display = char === ' ' ? ' ' : char
     const width = measureCtx
       ? measureCtx.measureText(display).width || fontSize * 0.6
       : fontSize * 0.6
     letters.push({ char, x: cursorX, width })
-    cursorX += width + fontSize * LETTER_GAP_RATIO
-  }
-  const totalWidth = Math.max(cursorX - fontSize * LETTER_GAP_RATIO, 0)
+    cursorX += width
+  })
+  const totalWidth = Math.max(cursorX, 0)
   return { letters, totalWidth, fontSize }
 }
 
@@ -69,7 +74,7 @@ export function measureGlyphBox(char, fontSize) {
 // canvas, factored out so a fitting fontSize can be worked out in advance
 // (see IllustratedWordPreview) without ever rendering the word first.
 export function computeWordBounds(text, zones, fontFamily, fontSize) {
-  const { letters, totalWidth } = measureWord(text, fontFamily, fontSize)
+  const { letters, totalWidth } = measureWord(text, fontFamily, fontSize, zones)
   const boxHeight = fontSize * LETTER_BOX_RATIO
   const wordWidth = Math.max(totalWidth, fontSize)
 

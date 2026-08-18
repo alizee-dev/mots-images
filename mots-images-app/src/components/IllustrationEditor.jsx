@@ -11,6 +11,7 @@ import {
   DEFAULT_CROP,
 } from '../wordGeometry'
 import EmojiPicker from './EmojiPicker'
+import { compressImageDataUrl } from '../imageCompression'
 
 const DISPLAY_SIZE_MAX = 460
 const DISPLAY_SIZE_MIN = 260
@@ -39,6 +40,7 @@ const LETTER_COLOR_PALETTE = [
   { color: '#2a9d8f', label: 'vert' },
   { color: '#f3722c', label: 'orange' },
   { color: '#7b2cbf', label: 'violet' },
+  { color: '#ffffff', label: 'blanc' },
 ]
 
 function useResponsiveSize() {
@@ -373,18 +375,25 @@ function CropOverlay({ item, kind, displaySize, mode, rect, onRectChange, path, 
 export default function IllustrationEditor({
   word,
   zone,
+  zones,
   fontFamily,
   letterColor: initialLetterColor,
   clipboard,
   onCopy,
   onSave,
+  onPreview,
   onDeleteZone,
   onClose,
 }) {
   const displaySize = useResponsiveSize()
+  // Uses the same full zones list as the main word view (not just the one
+  // zone being edited here) so a letter shifted closer to its neighbour
+  // shows at that same position in this watermark — otherwise the
+  // illustration would be drawn against a layout that doesn't match how
+  // the word actually renders everywhere else.
   const { letters } = useMemo(
-    () => measureWord(word.text, fontFamily, EDITOR_FONT_SIZE),
-    [word.text, fontFamily]
+    () => measureWord(word.text, fontFamily, EDITOR_FONT_SIZE, zones),
+    [word.text, fontFamily, zones]
   )
   const rect = useMemo(() => computeZoneRect(zone, letters, EDITOR_FONT_SIZE), [zone, letters])
   const frame = useMemo(() => (rect ? getZoneFrame(rect) : null), [rect])
@@ -547,7 +556,14 @@ export default function IllustrationEditor({
     }
     const pos = e.target.getStage().getPointerPosition()
     const f = toFrac(pos)
-    drawingRef.current = { id: uuid(), color: penColor, strokeWidth: penSize, opacity: penOpacity, points: [f.x, f.y] }
+    drawingRef.current = {
+      id: uuid(),
+      color: penColor,
+      strokeWidth: penSize,
+      opacity: penOpacity,
+      behind: false,
+      points: [f.x, f.y],
+    }
   }
 
   const handlePointerMove = (e) => {
@@ -579,6 +595,7 @@ export default function IllustrationEditor({
       sizeFrac: 0.32,
       rotation: 0,
       opacity: 1,
+      behind: false,
       cropRect: DEFAULT_CROP,
       cropPath: null,
     }
@@ -604,27 +621,34 @@ export default function IllustrationEditor({
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
-      const dataUrl = reader.result
       const probe = new window.Image()
       probe.onload = () => {
-        const image = {
-          id: uuid(),
-          type: 'image',
-          dataUrl,
-          aspect: probe.height / probe.width,
-          xFrac: 0.5,
-          yFrac: 0.5,
-          widthFrac: 0.45,
-          rotation: 0,
-          opacity: 1,
-          cropRect: DEFAULT_CROP,
-          cropPath: null,
-        }
-        commit({ ...illustration, images: [...illustration.images, image] })
-        setSelectedId(image.id)
-        setTool('select')
+        const aspect = probe.height / probe.width
+        // A phone photo can be several MB, and base64 inflates that further
+        // by about a third — easily enough to blow past the backend's
+        // request-size limit on save (a 413). Downscaling and re-encoding
+        // keeps the saved word well under that limit.
+        compressImageDataUrl(reader.result, { forcePng: file.type === 'image/png' }).then((dataUrl) => {
+          const image = {
+            id: uuid(),
+            type: 'image',
+            dataUrl,
+            aspect,
+            xFrac: 0.5,
+            yFrac: 0.5,
+            widthFrac: 0.45,
+            rotation: 0,
+            opacity: 1,
+            behind: false,
+            cropRect: DEFAULT_CROP,
+            cropPath: null,
+          }
+          commit({ ...illustration, images: [...illustration.images, image] })
+          setSelectedId(image.id)
+          setTool('select')
+        })
       }
-      probe.src = dataUrl
+      probe.src = reader.result
     }
     reader.readAsDataURL(file)
     e.target.value = ''
@@ -636,6 +660,18 @@ export default function IllustrationEditor({
     if (found.kind === 'sticker') updateSticker({ ...found.item, opacity: value })
     else if (found.kind === 'image') updateImage({ ...found.item, opacity: value })
     else updateStroke({ ...found.item, opacity: value })
+  }
+
+  // Front/behind is set per element (stroke, sticker, or image), not for the
+  // whole letter's illustration at once — a shell drawn on the "o" and a
+  // body drawn on the "t" might need opposite stacking relative to their own
+  // letters, or even relative to each other within the same letter.
+  const updateBehind = (value) => {
+    const found = findItem(selectedId)
+    if (!found) return
+    if (found.kind === 'sticker') updateSticker({ ...found.item, behind: value })
+    else if (found.kind === 'image') updateImage({ ...found.item, behind: value })
+    else updateStroke({ ...found.item, behind: value })
   }
 
   const clearZone = () => {
@@ -752,9 +788,12 @@ export default function IllustrationEditor({
           <div className="editor-header-actions">
             <button
               type="button"
-              className="btn btn-toggle active"
-              onClick={() => onSave(illustration, letterColor)}
+              className="btn btn-secondary"
+              onClick={() => onPreview(illustration, letterColor)}
             >
+              👁️ Aperçu
+            </button>
+            <button type="button" className="btn btn-toggle active" onClick={() => onSave(illustration, letterColor)}>
               💾 Enregistrer
             </button>
           </div>
@@ -1047,6 +1086,23 @@ export default function IllustrationEditor({
                         ✂️ Recadrer
                       </button>
                     )}
+                    <p className="editor-tool-label">Position par rapport à la lettre</p>
+                    <div className="editor-tabs">
+                      <button
+                        type="button"
+                        className={`btn btn-tab ${!selectedFound.item.behind ? 'active' : ''}`}
+                        onClick={() => updateBehind(false)}
+                      >
+                        Devant
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-tab ${selectedFound.item.behind ? 'active' : ''}`}
+                        onClick={() => updateBehind(true)}
+                      >
+                        Derrière
+                      </button>
+                    </div>
                   </div>
                 )}
 

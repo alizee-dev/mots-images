@@ -5,6 +5,7 @@ import {
   getZoneFrame,
   computeZoneRect,
   LETTER_BOX_RATIO,
+  LETTER_GAP_RATIO,
   getClipProps,
   measureGlyphBox,
 } from '../wordGeometry'
@@ -43,11 +44,16 @@ function StickerImage({ image, x, y, size, rotation }) {
   )
 }
 
-function ZoneIllustration({ zone, frame }) {
+// `behind` selects which of this zone's own elements to draw — each stroke,
+// sticker, and image carries its own front/behind flag, so a single letter's
+// illustration can straddle the letters (e.g. part of it drawn under, part
+// drawn over) rather than the whole zone moving as one block.
+function ZoneIllustration({ zone, frame, behind }) {
   const illu = zone.illustration
+  const matches = (el) => !!el.behind === behind
   return (
     <Group listening={false}>
-      {illu.strokes.map((s) => (
+      {illu.strokes.filter(matches).map((s) => (
         <Line
           key={s.id}
           points={s.points.map((v, i) => (i % 2 === 0 ? frame.x + v * frame.size : frame.y + v * frame.size))}
@@ -59,7 +65,7 @@ function ZoneIllustration({ zone, frame }) {
           tension={0.35}
         />
       ))}
-      {illu.stickers.map((s) => {
+      {illu.stickers.filter(matches).map((s) => {
         const size = s.sizeFrac * frame.size
         const box = measureGlyphBox(s.emoji, size)
         const clipProps = getClipProps(s, box.width, box.height)
@@ -76,7 +82,7 @@ function ZoneIllustration({ zone, frame }) {
           </Group>
         )
       })}
-      {illu.images.map((im) => (
+      {illu.images.filter(matches).map((im) => (
         <StickerImage
           key={im.id}
           image={im}
@@ -101,13 +107,14 @@ const WordStage = forwardRef(function WordStage(
     showIllustrations = true,
     interactive = false,
     onSelectLetter,
+    onGapChange,
     margin = 40,
   },
   ref
 ) {
   const { letters, totalWidth } = useMemo(
-    () => measureWord(text, fontFamily, fontSize),
-    [text, fontFamily, fontSize]
+    () => measureWord(text, fontFamily, fontSize, zones),
+    [text, fontFamily, fontSize, zones]
   )
   const boxHeight = fontSize * LETTER_BOX_RATIO
   const wordWidth = Math.max(totalWidth, fontSize)
@@ -145,12 +152,61 @@ const WordStage = forwardRef(function WordStage(
         <Layer x={offsetX} y={offsetY}>
           <Rect x={-offsetX} y={-offsetY} width={stageWidth} height={stageHeight} fill={palette.background} listening={false} />
 
+          {showIllustrations &&
+            zones.map((zone) => {
+              const rect = computeZoneRect(zone, letters, fontSize)
+              if (!rect) return null
+              const frame = getZoneFrame(rect)
+              return <ZoneIllustration key={`${zone.id}-behind`} zone={zone} frame={frame} behind />
+            })}
+
           {letters.map((letter, i) => {
             const zone = zones.find((z) => z.letterIndex === i)
+            const prevLetter = letters[i - 1]
+            // Only a letter with a predecessor can be dragged closer — there's
+            // nothing before the first letter to close a gap against. It can
+            // slide left far enough to fully overlap the previous glyph (not
+            // just touch it), but no further — past that it would start
+            // climbing onto the letter before that one, which stops making
+            // sense as "closer to the previous letter". It can never open a
+            // wider-than-default gap either (only closing gaps, not widening
+            // them).
+            const draggable = interactive && i > 0 && !!onGapChange
+            const touchX = prevLetter ? prevLetter.x + prevLetter.width : letter.x
+            const dragMinX = prevLetter ? prevLetter.x : letter.x
+            // Always the true default position for this letter-pair, computed
+            // from the previous letter's actual (possibly itself adjusted)
+            // position plus the standard gap — not letter.x itself, which
+            // already reflects this letter's own current override and would
+            // make the draggable range collapse to wherever it last stopped,
+            // permanently losing the ability to drag it back out again.
+            const dragMaxX = touchX + fontSize * LETTER_GAP_RATIO
             return (
-              <Group key={i}>
+              <Group
+                key={i}
+                x={letter.x}
+                y={0}
+                draggable={draggable}
+                // dragBoundFunc works in the Stage's absolute pixel space,
+                // not this Group's local (Layer-relative) coordinates — the
+                // Layer itself is shifted by (offsetX, offsetY) to fit every
+                // zone illustration on-canvas, so the bounds must be
+                // translated by that same offset here, or the clamp compares
+                // against the wrong numbers and the letter snaps miles away
+                // from the row on the very first pointer move.
+                dragBoundFunc={(pos) => ({
+                  x: Math.min(offsetX + dragMaxX, Math.max(offsetX + dragMinX, pos.x)),
+                  y: offsetY,
+                })}
+                onDragEnd={(e) => {
+                  const gapPx = e.target.x() - touchX
+                  const minGapFrac = (dragMinX - touchX) / fontSize
+                  const gapFrac = Math.min(LETTER_GAP_RATIO, Math.max(minGapFrac, gapPx / fontSize))
+                  onGapChange(i, gapFrac)
+                }}
+              >
                 <Rect
-                  x={letter.x}
+                  x={0}
                   y={0}
                   width={letter.width}
                   height={boxHeight}
@@ -164,7 +220,7 @@ const WordStage = forwardRef(function WordStage(
                 />
                 <Text
                   text={letter.char}
-                  x={letter.x}
+                  x={0}
                   y={0}
                   width={letter.width}
                   height={boxHeight}
@@ -185,7 +241,7 @@ const WordStage = forwardRef(function WordStage(
               const rect = computeZoneRect(zone, letters, fontSize)
               if (!rect) return null
               const frame = getZoneFrame(rect)
-              return <ZoneIllustration key={zone.id} zone={zone} frame={frame} />
+              return <ZoneIllustration key={`${zone.id}-front`} zone={zone} frame={frame} behind={false} />
             })}
         </Layer>
       </Stage>

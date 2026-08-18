@@ -55,6 +55,16 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
     throw new Error('Session expirée, merci de te reconnecter.')
   }
 
+  if (res.status === 413) {
+    // A 413 is typically raised by the body-size limit before the request
+    // even reaches a route handler, so there's usually no JSON body to read
+    // a message from at all — this is worth a dedicated, actionable message
+    // rather than falling through to a bare "Erreur 413".
+    throw new Error(
+      "Ce mot est trop volumineux pour être enregistré, probablement à cause d'une image importée trop lourde. Réduis la taille ou le nombre d'images utilisées sur ce mot."
+    )
+  }
+
   if (!res.ok) {
     // This backend's error responses are a bare JSON string (e.g. "Forbidden"),
     // not an { message } or { error } object — reading only those fields was
