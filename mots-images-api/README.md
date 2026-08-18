@@ -136,6 +136,7 @@ erDiagram
 Creates a new teacher account.
 Body: `{ name: string, email: string, password: string }`
 Returns (201): `{ id, name, email }`
+Returns (400) if the password is shorter than 8 characters.
 
 **POST /teachers/login**
 Authenticates a teacher and returns a JWT.

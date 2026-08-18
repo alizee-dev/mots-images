@@ -15,6 +15,11 @@ const ERROR_TRANSLATIONS = {
   'invalid credentials': 'Email ou mot de passe incorrect.',
   'invalid email or password': 'Email ou mot de passe incorrect.',
   'bad request': "La demande envoyée n'est pas valide.",
+  // POST /teachers/register now answers with this dedicated message when
+  // the password is under 8 characters, instead of the generic "Bad
+  // request" it used to share with every other 400 — no more guessing which
+  // validation rule actually failed.
+  'password must be at least 8 characters': 'Le mot de passe doit contenir au moins 8 caractères.',
   'internal server error': 'Une erreur est survenue côté serveur, réessaie dans un instant.',
 }
 

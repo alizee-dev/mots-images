@@ -189,6 +189,12 @@ h3 {
   border-color: var(--color-primary);
 }
 
+.field-hint {
+  margin: -2px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .empty-hint {
   font-size: 1.2rem;
   color: var(--color-text-muted);

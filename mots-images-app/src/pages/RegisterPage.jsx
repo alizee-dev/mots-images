@@ -73,8 +73,10 @@ export default function RegisterPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password"
+          minLength={8}
           required
         />
+        <p className="field-hint">Minimum 8 caractères</p>
 
         {error && <p className="form-error">{error}</p>}
 
