@@ -79,6 +79,13 @@ This would turn illustration from a manual drawing task into a guided creative d
 **Backend**: Node.js, Express, PostgreSQL, JWT, bcrypt
 **Frontend**: React, Vite, Konva (illustration canvas), react-router-dom, recharts (progress visualization)
 
+## Live demo
+
+- Frontend: [mots-images.vercel.app](https://mots-images.vercel.app)
+- Backend API: [mots-images-production.up.railway.app](https://mots-images-production.up.railway.app)
+
+Deployed on Railway (backend + PostgreSQL) and Vercel (frontend).
+
 ## Quick start
 
 See the [`mots-images-api`](./mots-images-api/README.md) and [`mots-images-app`](./mots-images-app/README.md) READMEs for detailed setup instructions. In short:
