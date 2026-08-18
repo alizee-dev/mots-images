@@ -10,7 +10,7 @@ const testSessionRoutes = require('./routes/test_sessions')
 const PORT = 3000
 
 const app = express()
-app.use(cors())
+app.use(cors({ origin: ['https://mots-images.vercel.app', 'http://localhost:5173', 'http://localhost:5174']  }))
 app.use(express.json())
 
 // Register & Login
