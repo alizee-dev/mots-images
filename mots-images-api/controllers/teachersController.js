@@ -7,9 +7,9 @@ const register = async (req, res) => {
         const {name, email, password} = req.body
 
         if (password.length < 8) {
-            return res.status(400).json('Bad request')
+            return res.status(400).json('Password must be at least 8 characters')
         } 
-        
+
         const hashedPassword = await bcrypt.hash(password, 10)
         const teacher = await createTeacher(name, email, hashedPassword)
         res.status(201).json(teacher)
