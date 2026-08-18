@@ -90,6 +90,7 @@ erDiagram
     string sentence
     jsonb zones
     int teacher_id FK
+    boolean in_bank
   }
   WORDS_STUDENTS {
     int word_id FK
