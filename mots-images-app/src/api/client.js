@@ -1,5 +1,5 @@
-const BASE_URL = 'http://localhost:3000'
-
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+console.log('DEBUG API URL:', BASE_URL)
 let authToken = null
 let onUnauthorized = null
 
