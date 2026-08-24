@@ -1,4 +1,11 @@
-const { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank } = require('../models/wordModel')
+const { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank, getWordById } = require('../models/wordModel')
+const { buildIllustrationPrompt } = require('../prompts/illustrationPrompt')
+const {getLettersPositions} = require('../utils/getLettersPositions')
+require('dotenv').config()
+const OpenAI = require('openai').default
+
+const openai = new OpenAI()
+
 
 const createWordController = async (req, res) => {
     try {
@@ -94,4 +101,39 @@ const deleteWordFromBankController = async (req, res) => {
     }
 }
 
-module.exports = { createWordController, getWordsController, postWordForStudentsController, updateWordController, deleteWordFromBankController}
+
+const generateIllustrationController = async (req, res) => {
+    const wordId = req.params.wordId
+    const teacherId = req.teacherId
+    const {letters, positions} = req.body
+
+    try {
+        const word = await getWordById(wordId, teacherId)
+        if(!word) {
+            return res.status(403).json('Forbidden')
+        }
+
+        const positionsPrompt = getLettersPositions(positions)
+        const prompt = buildIllustrationPrompt(word, letters, positionsPrompt)
+
+        const result = await openai.images.generate({
+            model: "gpt-image-2",
+            prompt,
+            n: 3
+        });
+
+        const illustrations = result.data.map((data, index) => ({
+            id : index,
+            image : data.b64_json
+        }))
+
+        res.status(200).json({illustrations})
+
+    } catch(error) {
+        res.status(500).json(error.message)
+    }
+}
+
+
+
+module.exports = { createWordController, getWordsController, postWordForStudentsController, updateWordController, deleteWordFromBankController, generateIllustrationController}

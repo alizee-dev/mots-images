@@ -56,4 +56,13 @@ const deleteWordFromBank = async (wordId, teacherId) => {
     return result.rows
 }
 
-module.exports = { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank }
+const getWordById = async (wordId, teacherId) => {
+    const result = await pool.query(`
+        SELECT id, text, sentence, zones
+        FROM words
+        WHERE id = $1 AND teacher_id = $2`, [wordId, teacherId])
+    
+    return result.rows[0]
+}
+
+module.exports = { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank, getWordById}
