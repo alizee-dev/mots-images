@@ -1,4 +1,5 @@
 const { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank, getWordById } = require('../models/wordModel')
+const { getAiGenerationsCount, incrementAiGenerationsCount } = require('../models/teacherModel')
 const { buildIllustrationPrompt } = require('../prompts/illustrationPrompt')
 const {getLettersPositions} = require('../utils/getLettersPositions')
 require('dotenv').config()
@@ -114,20 +115,26 @@ const generateIllustrationController = async (req, res) => {
         }
 
         const positionsPrompt = getLettersPositions(positions)
-        const prompt = buildIllustrationPrompt(word, letters, positionsPrompt)
+        const prompt = buildIllustrationPrompt(word.text, letters, positionsPrompt)
+        const count = await getAiGenerationsCount(teacherId)
 
-        const result = await openai.images.generate({
-            model: "gpt-image-2",
-            prompt,
-            n: 3
-        });
+        if(count < 5) {
+            const result = await openai.images.generate({
+                model: "gpt-image-2",
+                prompt,
+                n: 3
+            });
 
-        const illustrations = result.data.map((data, index) => ({
-            id : index,
-            image : data.b64_json
-        }))
+            const illustrations = result.data.map((data, index) => ({
+                id : index,
+                image : data.b64_json
+            }))
 
-        res.status(200).json({illustrations})
+            await incrementAiGenerationsCount(teacherId)
+            res.status(200).json({illustrations})
+        } else {
+            return res.status(429).json('Vous avez atteint la limite autorisée')
+        }
 
     } catch(error) {
         if(error.name === 'ValidationError') {

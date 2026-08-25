@@ -14,4 +14,21 @@ const findTeacher = async (email) => {
     return result.rows[0]
 }
 
-module.exports = {createTeacher, findTeacher}
+const getAiGenerationsCount = async(teacherId) => {
+    const result = await pool.query(`
+        SELECT ai_generations_count 
+        FROM teachers
+        where id = $1`, [teacherId])
+    return result.rows[0].ai_generations_count
+}
+
+const incrementAiGenerationsCount = async(teacherId) => {
+    const result = await pool.query(`
+        UPDATE teachers
+        SET ai_generations_count = ai_generations_count +1
+        WHERE id = $1
+        RETURNING id, ai_generations_count`, [teacherId])
+    return result.rows[0]
+}
+
+module.exports = {createTeacher, findTeacher, getAiGenerationsCount, incrementAiGenerationsCount}
