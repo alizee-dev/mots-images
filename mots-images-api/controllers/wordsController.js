@@ -130,7 +130,12 @@ const generateIllustrationController = async (req, res) => {
         res.status(200).json({illustrations})
 
     } catch(error) {
-        res.status(500).json(error.message)
+        if(error.name === 'ValidationError') {
+            res.status(400).json(error.message)
+        } else {
+            res.status(500).json(error.message)
+        }
+        
     }
 }
 

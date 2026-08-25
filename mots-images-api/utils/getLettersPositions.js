@@ -1,12 +1,16 @@
 // Fonction permettant de créer lettersPosition pour le prompt sur base des index des lettres sélectionnées
 const getLettersPositions = (positions) => {
     if(positions.length === 0) {
-        throw new Error('Une lettre minimum doit être sélectionnée')
+        const error = new Error('Une lettre minimum doit être sélectionnée')
+        error.name = 'ValidationError'
+        throw error
     }
 
     for(let i = 1; i < positions.length; i++) {
         if (positions[i-1] +1 !== positions[i]) {
-            throw new Error("les lettres sélectionnées doivent être consécutives")
+            const error = new Error('Les lettres sélectionnées doivent être consécutives')
+            error.name = 'ValidationError'
+            throw error
         } 
     }
 
