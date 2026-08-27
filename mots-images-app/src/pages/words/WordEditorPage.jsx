@@ -3,8 +3,14 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import WordStage from '../../components/WordStage'
 import IllustrationEditor from '../../components/IllustrationEditor'
-import { createWord, getWords, updateWord } from '../../api/words'
-import { computeWordBounds, LETTER_GAP_RATIO } from '../../wordGeometry'
+import { createWord, generateWordIllustration, getWords, updateWord } from '../../api/words'
+import {
+  AI_WHOLE_WORD_LETTER_INDEX,
+  computeWordBounds,
+  DEFAULT_CROP,
+  getAiWholeWordImage,
+  LETTER_GAP_RATIO,
+} from '../../wordGeometry'
 import { ensureZonesImagesAreCompressed } from '../../imageCompression'
 
 const FONT_FAMILY = 'OpenDyslexic'
@@ -94,6 +100,19 @@ export default function WordEditorPage() {
   const [activeZoneId, setActiveZoneId] = useState(null)
   const [draftNewZone, setDraftNewZone] = useState(null)
   const [clipboard, setClipboard] = useState(null)
+
+  // AI illustration generation (beta): a separate letter-picking mode from
+  // the normal "click a letter to open its illustration editor" one — see
+  // aiFlow below for the state machine (null while inactive).
+  //   null        — inactive, normal editing
+  //   'selecting' — picking a consecutive run of letters
+  //   'generating' — request in flight
+  //   'results'   — 3 proposals shown, waiting for a choice
+  const [aiFlow, setAiFlow] = useState(null)
+  const [aiSelectedIndices, setAiSelectedIndices] = useState([])
+  const [aiError, setAiError] = useState(null)
+  const [aiProposals, setAiProposals] = useState([])
+
   const loadedOnce = useRef(false)
   const previewContainerRef = useRef(null)
   const editContainerRef = useRef(null)
@@ -176,6 +195,11 @@ export default function WordEditorPage() {
     return map
   }, [zones])
 
+  // Presence of this reserved zone means the word currently shows a chosen
+  // AI illustration instead of the normal interactive letter row — see
+  // applyAiProposal / removeAiWholeWordImage.
+  const aiWholeWordImage = useMemo(() => getAiWholeWordImage(zones), [zones])
+
   const handleCreate = async (e) => {
     e.preventDefault()
     const text = textDraft.trim()
@@ -242,6 +266,168 @@ export default function WordEditorPage() {
       return [...zs, { id: uuid(), letterIndex, letterColor: null, illustration: emptyIllustration(), gapBeforeFrac: gapFrac }]
     })
   }, [])
+
+  const wordLetterCount = Array.from(wordText).length
+
+  // Which letters can currently be clicked while picking letters for AI
+  // generation: nothing picked yet → any letter starts a new range;
+  // otherwise only the two letters immediately adjacent to the current
+  // range (extending it) or already-selected ones (to allow deselecting)
+  // — enforced visually (see WordStage's selectableIndices) rather than
+  // only after the fact, so there's nothing to click that would need
+  // rejecting in the first place.
+  const aiSelectableIndices = useMemo(() => {
+    if (aiSelectedIndices.length === 0) {
+      return new Set(Array.from({ length: wordLetterCount }, (_, i) => i))
+    }
+    const min = Math.min(...aiSelectedIndices)
+    const max = Math.max(...aiSelectedIndices)
+    const set = new Set(aiSelectedIndices)
+    if (min - 1 >= 0) set.add(min - 1)
+    if (max + 1 < wordLetterCount) set.add(max + 1)
+    return set
+  }, [aiSelectedIndices, wordLetterCount])
+
+  const startAiFlow = useCallback(() => {
+    setAiFlow('selecting')
+    setAiSelectedIndices([])
+    setAiError(null)
+    setAiProposals([])
+    // Mutually exclusive with manual letter editing — closing whichever
+    // illustration editor might already be open avoids the two flows
+    // fighting over the same letter row.
+    setDraftNewZone(null)
+    setActiveZoneId(null)
+  }, [])
+
+  const resetAiFlow = useCallback(() => {
+    setAiFlow(null)
+    setAiSelectedIndices([])
+    setAiError(null)
+    setAiProposals([])
+  }, [])
+
+  const handleAiSelectLetter = useCallback((letterIndex) => {
+    setAiSelectedIndices((prev) => {
+      if (prev.includes(letterIndex)) {
+        const min = Math.min(...prev)
+        const max = Math.max(...prev)
+        // Only the two ends of the current range can be removed — taking one
+        // from the middle would leave a gap, breaking the consecutive-range
+        // rule.
+        if (letterIndex !== min && letterIndex !== max) return prev
+        return prev.filter((i) => i !== letterIndex)
+      }
+      if (prev.length === 0) return [letterIndex]
+      const min = Math.min(...prev)
+      const max = Math.max(...prev)
+      if (letterIndex === min - 1 || letterIndex === max + 1) {
+        return [...prev, letterIndex].sort((a, b) => a - b)
+      }
+      // Not adjacent to the current range — the letter is already shown as
+      // unselectable in this case, so this is just a defensive no-op.
+      return prev
+    })
+  }, [])
+
+  const handleGenerateAiIllustrations = useCallback(async () => {
+    if (aiSelectedIndices.length === 0) return
+    const sortedIndices = [...aiSelectedIndices].sort((a, b) => a - b)
+    const chars = Array.from(wordText)
+    const letters = sortedIndices.map((i) => chars[i]).join('')
+    const positions = sortedIndices.map((i) => i + 1) // API positions are 1-based
+    setAiFlow('generating')
+    setAiError(null)
+    try {
+      const { illustrations } = await generateWordIllustration(wordId, letters, positions)
+      setAiProposals(illustrations)
+      setAiFlow('results')
+    } catch (err) {
+      // Branches on the HTTP status (see client.js's statusError), not the
+      // message text — but verified against the real backend that 400
+      // ("Les lettres sélectionnées doivent être consécutives", "Une lettre
+      // minimum doit être sélectionnée") and 403 ("Forbidden", already
+      // translated via ERROR_TRANSLATIONS) both carry a clear, specific
+      // message on err.message already, so those are shown as-is rather
+      // than replaced with a generic one. 429 and 500 get a guaranteed
+      // fallback since their exact wording isn't confirmed (429 needs
+      // quota actually exhausted to observe; 500 needs a real OpenAI
+      // failure) — apiFetch falls back to a bare "Erreur 429"/"Erreur 500"
+      // when it can't parse a real message, which isn't worth showing as-is.
+      if (err.status === 429 && /^Erreur 429$/.test(err.message)) {
+        setAiError('Tu as atteint ta limite de générations IA pour le moment. Réessaie plus tard, ou illustre ce mot manuellement.')
+      } else if (err.status === 500 && /^Erreur 500$/.test(err.message)) {
+        setAiError('La génération IA a échoué côté serveur. Réessaie dans un instant.')
+      } else {
+        setAiError(err.message)
+      }
+      setAiFlow('selecting')
+    }
+  }, [aiSelectedIndices, wordText, wordId])
+
+  // The AI returns one complete picture of the whole word (its own
+  // rendering of the letters plus the illustration integrated into them),
+  // not a decoration meant to sit inside a single letter's zone the way a
+  // manual sticker/drawing does — the selected letters only shaped the
+  // prompt sent to generate it (see handleGenerateAiIllustrations). So
+  // choosing a proposal replaces the word's whole illustration state with
+  // one reserved-index zone (see wordGeometry.AI_WHOLE_WORD_LETTER_INDEX)
+  // instead of attaching to a real letterIndex — any previous per-letter
+  // zones would never be visible again underneath it anyway.
+  const applyAiProposal = useCallback((proposal) => {
+    const dataUrl = `data:image/png;base64,${proposal.image}`
+    const probe = new window.Image()
+    probe.onload = () => {
+      const image = {
+        id: uuid(),
+        type: 'image',
+        dataUrl,
+        aspect: probe.height / probe.width,
+        xFrac: 0.5,
+        yFrac: 0.5,
+        widthFrac: 1,
+        rotation: 0,
+        opacity: 1,
+        behind: false,
+        cropRect: DEFAULT_CROP,
+        cropPath: null,
+      }
+      setZones([
+        {
+          id: uuid(),
+          letterIndex: AI_WHOLE_WORD_LETTER_INDEX,
+          letterColor: null,
+          illustration: { strokes: [], stickers: [], images: [image] },
+        },
+      ])
+      resetAiFlow()
+    }
+    probe.src = dataUrl
+  }, [resetAiFlow])
+
+  // Clears the AI illustration and goes back to a blank slate for manual
+  // per-letter editing — the two are mutually exclusive (see WordStage),
+  // so there's nothing else in `zones` worth keeping once this is removed.
+  const removeAiWholeWordImage = useCallback(() => {
+    if (
+      !window.confirm(
+        "Retirer l'illustration générée par IA de ce mot ? Tu pourras ensuite illustrer chaque lettre manuellement."
+      )
+    ) {
+      return
+    }
+    setZones([])
+  }, [])
+
+  // None of the 3 proposals fit — falls back to the exact same manual
+  // editor a normal letter click would open, on the first letter of the
+  // range that was picked.
+  const rejectAiProposals = useCallback(() => {
+    const sortedIndices = [...aiSelectedIndices].sort((a, b) => a - b)
+    const letterIndex = sortedIndices[0]
+    resetAiFlow()
+    openLetterZone(letterIndex)
+  }, [aiSelectedIndices, resetAiFlow, openLetterZone])
 
   const saveZone = useCallback(
     (illustration, letterColor) => {
@@ -351,9 +537,14 @@ export default function WordEditorPage() {
         <h2>{wordText}</h2>
         <div className="app-header-actions">
           {saveError && <span className="form-error">{saveError}</span>}
-          {mode === 'edit' && (
+          {mode === 'edit' && !aiFlow && (
             <button type="button" className="btn btn-secondary" onClick={() => setMode('preview')}>
               👁️ Aperçu
+            </button>
+          )}
+          {mode === 'edit' && !aiFlow && (
+            <button type="button" className="btn btn-secondary" onClick={startAiFlow}>
+              ✨ Illustrer avec l’IA (bêta)
             </button>
           )}
           <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
@@ -365,42 +556,121 @@ export default function WordEditorPage() {
       {mode === 'edit' && (
         <>
           <p className="edit-instructions no-print">
-            👉 Clique sur une lettre pour l’illustrer et choisir sa couleur. Glisse-la vers la précédente pour les
-            rapprocher (et la faire glisser jusqu’au bout pour annuler).
+            {aiFlow === 'selecting' &&
+              "✨ Sélectionne une lettre, ou une plage de lettres consécutives, à illustrer avec l'IA (bêta)."}
+            {aiFlow === 'generating' && '✨ Génération des propositions en cours (bêta)…'}
+            {aiFlow === 'results' && '✨ Choisis une proposition, ou reviens à l’édition manuelle (bêta).'}
+            {!aiFlow &&
+              aiWholeWordImage &&
+              '✨ Ce mot utilise une illustration générée par IA (bêta).'}
+            {!aiFlow &&
+              !aiWholeWordImage &&
+              '👉 Clique sur une lettre pour l’illustrer et choisir sa couleur. Glisse-la vers la précédente pour les rapprocher (et la faire glisser jusqu’au bout pour annuler).'}
           </p>
 
           <div className="word-stage-fit" ref={editContainerRef}>
             <WordStage
               text={wordText}
               fontSize={editFontSize}
-              zones={zones}
+              // While an AI flow is active, the letter row itself is what's
+              // being picked from — hide any already-chosen whole-word image
+              // for that moment so there's something to click, even when
+              // re-running the AI flow to replace an existing illustration.
+              zones={aiFlow ? zones.filter((z) => z.letterIndex !== AI_WHOLE_WORD_LETTER_INDEX) : zones}
               letterColors={letterColors}
               theme={theme}
-              interactive
-              onSelectLetter={openLetterZone}
-              onGapChange={handleGapChange}
+              interactive={aiFlow === 'selecting' || (!aiFlow && !aiWholeWordImage)}
+              onSelectLetter={aiFlow === 'selecting' ? handleAiSelectLetter : openLetterZone}
+              onGapChange={aiFlow ? undefined : handleGapChange}
+              selectionMode={aiFlow === 'selecting'}
+              selectedIndices={aiSelectedIndices}
+              selectableIndices={aiSelectableIndices}
             />
           </div>
 
-          <label htmlFor="word-sentence" className="word-input-label">
-            Phrase à trous (facultatif)
-          </label>
-          <input
-            id="word-sentence"
-            type="text"
-            className="word-input"
-            value={sentence}
-            onChange={(e) => setSentence(e.target.value)}
-          />
-
-          {zones.length > 0 && (
-            <div className="zone-list no-print">
-              {zones.map((zone) => (
-                <button key={zone.id} type="button" className="zone-chip" onClick={() => setActiveZoneId(zone.id)}>
-                  {zoneLabel(zone)}
-                </button>
-              ))}
+          {aiFlow === 'selecting' && (
+            <div className="app-header-actions no-print">
+              <button
+                type="button"
+                className="btn btn-toggle active"
+                onClick={handleGenerateAiIllustrations}
+                disabled={aiSelectedIndices.length === 0}
+              >
+                ✨ Générer
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={resetAiFlow}>
+                Annuler
+              </button>
             </div>
+          )}
+
+          {aiFlow === 'generating' && (
+            <div className="ai-generating no-print">
+              <span className="spinner" aria-hidden="true" />
+              <p>Génération en cours, ça peut prendre jusqu’à 30 secondes…</p>
+            </div>
+          )}
+
+          {aiError && <p className="form-error">{aiError}</p>}
+
+          {aiFlow === 'results' && (
+            <div className="ai-results no-print">
+              <div className="ai-proposal-grid">
+                {aiProposals.map((proposal) => (
+                  <div key={proposal.id} className="ai-proposal-card">
+                    <img
+                      className="ai-proposal-image"
+                      src={`data:image/png;base64,${proposal.image}`}
+                      alt="Proposition d'illustration générée par IA"
+                    />
+                    <button type="button" className="btn btn-toggle active" onClick={() => applyAiProposal(proposal)}>
+                      Choisir
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="app-header-actions">
+                <button type="button" className="btn btn-secondary" onClick={rejectAiProposals}>
+                  Aucune ne convient → éditer manuellement
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={resetAiFlow}>
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!aiFlow && aiWholeWordImage && (
+            <div className="app-header-actions no-print">
+              <button type="button" className="btn btn-ghost" onClick={removeAiWholeWordImage}>
+                🗑️ Retirer l’illustration IA
+              </button>
+            </div>
+          )}
+
+          {!aiFlow && (
+            <>
+              <label htmlFor="word-sentence" className="word-input-label">
+                Phrase à trous (facultatif)
+              </label>
+              <input
+                id="word-sentence"
+                type="text"
+                className="word-input"
+                value={sentence}
+                onChange={(e) => setSentence(e.target.value)}
+              />
+
+              {!aiWholeWordImage && zones.length > 0 && (
+                <div className="zone-list no-print">
+                  {zones.map((zone) => (
+                    <button key={zone.id} type="button" className="zone-chip" onClick={() => setActiveZoneId(zone.id)}>
+                      {zoneLabel(zone)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

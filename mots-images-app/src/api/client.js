@@ -29,6 +29,17 @@ function translateErrorMessage(raw) {
   return translated || raw
 }
 
+// Attaches the HTTP status to the thrown Error so a caller that needs to
+// branch on *which* error happened (e.g. 429 quota vs 400 validation) can
+// check `err.status` directly, instead of pattern-matching on message text —
+// message-based matching already proved fragile once this session (a
+// generic "Bad request" shared by an unrelated validation rule).
+function statusError(message, status) {
+  const err = new Error(message)
+  err.status = status
+  return err
+}
+
 export function setAuthToken(token) {
   authToken = token
 }
@@ -55,9 +66,15 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
     throw new Error('Impossible de contacter le serveur — vérifie ta connexion.')
   }
 
-  if (res.status === 401) {
+  // POST /teachers/login also answers 401 for a rejected login attempt (bad
+  // email or password) — that's not an expired session, it's a fresh,
+  // never-authenticated request, so it must fall through to the generic
+  // handling below and show the backend's own credentials message instead of
+  // being swallowed by the "reconnecte-toi" wording meant for a token that
+  // died mid-use.
+  if (res.status === 401 && path !== '/teachers/login') {
     if (onUnauthorized) onUnauthorized()
-    throw new Error('Session expirée, merci de te reconnecter.')
+    throw statusError('Session expirée, merci de te reconnecter.', 401)
   }
 
   if (res.status === 413) {
@@ -65,8 +82,9 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
     // even reaches a route handler, so there's usually no JSON body to read
     // a message from at all — this is worth a dedicated, actionable message
     // rather than falling through to a bare "Erreur 413".
-    throw new Error(
-      "Ce mot est trop volumineux pour être enregistré, probablement à cause d'une image importée trop lourde. Réduis la taille ou le nombre d'images utilisées sur ce mot."
+    throw statusError(
+      "Ce mot est trop volumineux pour être enregistré, probablement à cause d'une image importée trop lourde. Réduis la taille ou le nombre d'images utilisées sur ce mot.",
+      413
     )
   }
 
@@ -79,7 +97,7 @@ export async function apiFetch(path, { method = 'GET', body } = {}) {
       .json()
       .then((data) => (typeof data === 'string' ? data : data.message || data.error))
       .catch(() => null)
-    throw new Error(translateErrorMessage(message) || `Erreur ${res.status}`)
+    throw statusError(translateErrorMessage(message) || `Erreur ${res.status}`, res.status)
   }
 
   if (res.status === 204) return null

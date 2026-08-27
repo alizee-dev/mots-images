@@ -4,6 +4,7 @@ import {
   measureWord,
   getZoneFrame,
   computeZoneRect,
+  getAiWholeWordImage,
   LETTER_BOX_RATIO,
   LETTER_GAP_RATIO,
   getClipProps,
@@ -108,10 +109,24 @@ const WordStage = forwardRef(function WordStage(
     interactive = false,
     onSelectLetter,
     onGapChange,
+    // AI-illustration letter picking (see WordEditorPage): a distinct visual
+    // mode from the normal "click a letter to open its illustration editor"
+    // one, so the two never get visually confused with each other.
+    selectionMode = false,
+    selectedIndices = [],
+    selectableIndices = null,
     margin = 40,
   },
   ref
 ) {
+  // An AI-generated illustration (see WordEditorPage) is one complete
+  // picture of the whole word, not a decoration for a single letter's box —
+  // when a word has one, it replaces the entire letter row below rather
+  // than being composited with it (which used to render the real letters
+  // and the AI picture's own baked-in text on top of each other).
+  const aiWholeWordImage = useMemo(() => getAiWholeWordImage(zones), [zones])
+  const aiImg = useHtmlImage(aiWholeWordImage?.dataUrl)
+
   const { letters, totalWidth } = useMemo(
     () => measureWord(text, fontFamily, fontSize, zones),
     [text, fontFamily, fontSize, zones]
@@ -125,6 +140,14 @@ const WordStage = forwardRef(function WordStage(
   // illustration draws above/below/beside the letters gets clipped by the
   // canvas edge.
   const bounds = useMemo(() => {
+    if (aiWholeWordImage) {
+      // Matches the footprint a manually-illustrated word of this length
+      // would occupy (the same full letter-row width) rather than shrinking
+      // to a single letter box; the image's own aspect ratio sets its height.
+      const width = wordWidth
+      const height = width * (aiWholeWordImage.aspect || 1)
+      return { minX: 0, maxX: width, minY: 0, maxY: height }
+    }
     let minX = 0
     let maxX = wordWidth
     let minY = 0
@@ -139,7 +162,7 @@ const WordStage = forwardRef(function WordStage(
       maxY = Math.max(maxY, frame.y + frame.size)
     })
     return { minX, maxX, minY, maxY }
-  }, [zones, letters, fontSize, wordWidth, boxHeight])
+  }, [zones, letters, fontSize, wordWidth, boxHeight, aiWholeWordImage])
 
   const offsetX = margin - bounds.minX
   const offsetY = margin - bounds.minY
@@ -152,6 +175,18 @@ const WordStage = forwardRef(function WordStage(
         <Layer x={offsetX} y={offsetY}>
           <Rect x={-offsetX} y={-offsetY} width={stageWidth} height={stageHeight} fill={palette.background} listening={false} />
 
+          {aiWholeWordImage ? (
+            aiImg && (
+              <KonvaImage
+                image={aiImg}
+                x={0}
+                y={0}
+                width={bounds.maxX - bounds.minX}
+                height={bounds.maxY - bounds.minY}
+              />
+            )
+          ) : (
+            <>
           {showIllustrations &&
             zones.map((zone) => {
               const rect = computeZoneRect(zone, letters, fontSize)
@@ -171,7 +206,9 @@ const WordStage = forwardRef(function WordStage(
             // sense as "closer to the previous letter". It can never open a
             // wider-than-default gap either (only closing gaps, not widening
             // them).
-            const draggable = interactive && i > 0 && !!onGapChange
+            const draggable = interactive && !selectionMode && i > 0 && !!onGapChange
+            const isSelected = selectionMode && selectedIndices.includes(i)
+            const isSelectable = !selectionMode || isSelected || !selectableIndices || selectableIndices.has(i)
             const touchX = prevLetter ? prevLetter.x + prevLetter.width : letter.x
             const dragMinX = prevLetter ? prevLetter.x : letter.x
             // Always the true default position for this letter-pair, computed
@@ -186,6 +223,7 @@ const WordStage = forwardRef(function WordStage(
                 key={i}
                 x={letter.x}
                 y={0}
+                opacity={selectionMode && !isSelectable ? 0.35 : 1}
                 draggable={draggable}
                 // dragBoundFunc works in the Stage's absolute pixel space,
                 // not this Group's local (Layer-relative) coordinates — the
@@ -210,13 +248,13 @@ const WordStage = forwardRef(function WordStage(
                   y={0}
                   width={letter.width}
                   height={boxHeight}
-                  fill={interactive && zone ? '#fff3cf' : 'transparent'}
-                  stroke={interactive ? '#dbe1e8' : 'transparent'}
-                  strokeWidth={2}
+                  fill={selectionMode ? (isSelected ? '#e3f1ed' : 'transparent') : interactive && zone ? '#fff3cf' : 'transparent'}
+                  stroke={selectionMode ? (isSelected ? '#35665c' : '#dbe1e8') : interactive ? '#dbe1e8' : 'transparent'}
+                  strokeWidth={isSelected ? 3 : 2}
                   cornerRadius={12}
-                  onClick={() => interactive && onSelectLetter && onSelectLetter(i)}
-                  onTap={() => interactive && onSelectLetter && onSelectLetter(i)}
-                  listening={interactive}
+                  onClick={() => interactive && isSelectable && onSelectLetter && onSelectLetter(i)}
+                  onTap={() => interactive && isSelectable && onSelectLetter && onSelectLetter(i)}
+                  listening={interactive && isSelectable}
                 />
                 <Text
                   text={letter.char}
@@ -243,6 +281,8 @@ const WordStage = forwardRef(function WordStage(
               const frame = getZoneFrame(rect)
               return <ZoneIllustration key={`${zone.id}-front`} zone={zone} frame={frame} behind={false} />
             })}
+            </>
+          )}
         </Layer>
       </Stage>
     </div>

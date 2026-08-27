@@ -49,6 +49,19 @@ export function computeZoneRect(zone, letters, fontSize) {
   return { x: letter.x, y: 0, width: letter.width, height: fontSize * LETTER_BOX_RATIO }
 }
 
+// AI-generated illustrations (see WordEditorPage's applyAiProposal) depict
+// the whole word as one complete picture, not a decoration for a single
+// letter's own box the way a manual sticker/drawing does — so they're kept
+// as a zone with this reserved letterIndex instead of a real one, and
+// rendered as a full replacement for the letter row (see WordStage), not
+// composited with it.
+export const AI_WHOLE_WORD_LETTER_INDEX = -1
+
+export function getAiWholeWordImage(zones) {
+  const zone = (zones || []).find((z) => z.letterIndex === AI_WHOLE_WORD_LETTER_INDEX)
+  return zone?.illustration?.images?.[0] || null
+}
+
 // An emoji glyph's true rendered box rarely matches the fontSize it was
 // requested at (metrics vary per-character and per-platform emoji font).
 // Measuring it precisely — instead of assuming a fontSize×fontSize square —
@@ -74,9 +87,19 @@ export function measureGlyphBox(char, fontSize) {
 // canvas, factored out so a fitting fontSize can be worked out in advance
 // (see IllustratedWordPreview) without ever rendering the word first.
 export function computeWordBounds(text, zones, fontFamily, fontSize) {
+  const aiImage = getAiWholeWordImage(zones)
   const { letters, totalWidth } = measureWord(text, fontFamily, fontSize, zones)
   const boxHeight = fontSize * LETTER_BOX_RATIO
   const wordWidth = Math.max(totalWidth, fontSize)
+
+  if (aiImage) {
+    // Matches the footprint a manually-illustrated word of this length would
+    // occupy — the same full letter-row width — rather than shrinking to a
+    // single letter box; the image's own aspect ratio then sets its height.
+    const width = wordWidth
+    const height = width * (aiImage.aspect || 1)
+    return { width, height }
+  }
 
   let minX = 0
   let maxX = wordWidth

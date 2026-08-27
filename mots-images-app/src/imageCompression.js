@@ -1,3 +1,5 @@
+import { AI_WHOLE_WORD_LETTER_INDEX } from './wordGeometry'
+
 // Measured empirically against the real backend (binary search on PUT
 // /words/:id): the whole request body is rejected with a 413 past exactly
 // 102400 bytes (100 KiB) — the standard Express body-parser default. This
@@ -113,12 +115,20 @@ export async function ensureZonesImagesAreCompressed(zones, sentence = '') {
     zones.map(async (zone) => {
       const images = zone.illustration?.images
       if (!images || images.length === 0) return zone
+      const isAiWholeWordZone = zone.letterIndex === AI_WHOLE_WORD_LETTER_INDEX
       const nextImages = await Promise.all(
         images.map(async (im) => {
           if (!im.dataUrl || im.dataUrl.length <= perImageBudget) return im
           changed = true
           const isPng = im.dataUrl.startsWith('data:image/png')
-          const dataUrl = await compressImageDataUrl(im.dataUrl, { forcePng: isPng, targetChars: perImageBudget })
+          // The AI's whole-word illustration is a complete, opaque picture —
+          // unlike a manual crop or sticker, it has no transparency to lose,
+          // so it isn't held to the "never downgrade a PNG" rule below. JPEG
+          // buys far more visible resolution per byte than a lossless PNG
+          // for this kind of detailed image, which is what actually matters
+          // under a fixed ~100KB body budget.
+          const forcePng = isPng && !isAiWholeWordZone
+          const dataUrl = await compressImageDataUrl(im.dataUrl, { forcePng, targetChars: perImageBudget })
           return { ...im, dataUrl }
         })
       )
