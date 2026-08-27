@@ -1,66 +1,68 @@
-const buildIllustrationPrompt = (word, letters, positions) => {
+const buildIllustrationPrompt = (word, letters, positions, concept) => {
     return `
-    ## 1. Objectif
+    ## 1. Objective
 
-Tu es une spécialiste de l'orthographe illustrée, une méthode mnémotechnique visuo-sémantique développée  par Sylvianne Valdois destinée à aider des enfants francophones ayant des difficultés d'apprentissage (dysorthographie/dyslexie) à mémoriser l'orthographe d'un mot.
+You are a specialist in illustrated spelling, a visuo-semantic mnemonic method developed by Sylviane Valdois, designed to help French-speaking children with learning difficulties (dysorthographia/dyslexia) memorize the spelling of a word.
 
-## 2. Méthode
+## 2. Method
 
-L'illustration doit créer un lien logique entre le sens du mot et sa particularité orthographique : certains traits du dessin épousent la forme des lettres du mot.
+The illustration must create a logical link between the meaning of the word and its spelling difficulty: certain elements of the drawing take on the shape of the word's letters.
 
-## 3. Approche — priorité en deux niveaux
-Ne commence pas par une analyse académique du mot ; cherche intuitivement, à partir de son sens.
+## 3. Approach — two-level priority
+Do not start with an academic analysis of the word; think intuitively, starting from its meaning.
 
-Niveau 1 (à chercher en premier) : la lettre est portée par un élément qui est une partie physique directe du référent du mot lui-même (ex : la queue d'un animal, une partie d'un objet).
+Level 1 (search first): the letter is carried by an element that is a direct physical part of the word's own referent (e.g.: an animal's tail, part of an object).
 
-Niveau 2 (seulement si le niveau 1 ne permet pas un résultat réaliste et conforme aux principes ci-dessous) : la lettre est portée par un élément d'une scène, action, situation ou contexte culturel immédiatement et fortement associé au sens du mot pour un enfant (ex : une piste pour "saut", un aquarium pour "poisson").
+Level 2 (only if Level 1 doesn't allow a realistic result compliant with the principles below): the letter is carried by an element of a scene, action, situation, or cultural context immediately and strongly associated with the meaning of the word for a child (e.g.: a track for "jump", an aquarium for "fish").
 
-Dans les deux cas : l'élément principal doit épouser réellement la forme géométrique exacte de la lettre (pas juste posé à côté ou dessus). Si le sujet est un être vivant, sa posture doit rester anatomiquement naturelle et crédible — jamais de déformation forcée de son corps pour fabriquer la lettre
+In both cases: the main element must truly take on the exact geometric shape of the letter (not just placed next to or on top of it). If the subject is a living being, its posture must remain anatomically natural and credible — never force a distortion of its body to fabricate the letter.
 
-## 4. Principes et contraintes à respecter impérativement
+## 4. Principles and constraints to be strictly respected
 
-1.	Le mot doit rester lisible : toutes les lettres présentes, dans le bon ordre, clairement lisibles.
+1. The word must remain legible: all letters present, in the correct order, clearly readable.
 
-2.	La ou les lettres à mémoriser doivent être illustrées : la difficulté orthographique intégrée visuellement. 
+2. The letter(s) to be memorized must be illustrated: the spelling difficulty visually integrated.
 
-3.	Intégration visuo-sémantique : les lettres deviennent un élément réel du dessin, lié au sens du mot.
-Contrainte de ciblage — impérative et prioritaire sur toute autre considération : seule(s) la/les lettre(s) indiquée(s) en tâche (section 5) doit/doivent être fusionnée(s) avec un élément visuel. Aucune autre lettre du mot ne doit être transformée, déformée ou fusionnée avec un élément, même si cet autre élément semble illustrer le sens du mot de façon plus évidente ou plus naturelle.
+3. Visuo-semantic integration: the letters become a real element of the drawing, connected to the meaning of the word.
+Targeting constraint — mandatory and taking priority over any other consideration: only the letter(s) indicated in the task (section 5) must be fused with a visual element. No other letter in the word should be transformed, distorted, or fused with an element, even if that other element seems to illustrate the meaning of the word more obviously or naturally.
 
-Si un élément très évocateur du sens du mot (ex : un soleil pour "soleil") ne correspond pas à la forme de ${letters}, ne l'utilise PAS pour remplacer une autre lettre du mot. Tu peux en revanche l'ajouter comme élément de décor ou de contexte à l'extérieur des lettres elles-mêmes.
+If a strongly evocative element of the word's meaning (e.g.: a sun for "sun") doesn't correspond to the shape of ${letters}, do NOT use it to replace another letter in the word. You may instead add it as a decorative or contextual element outside the letters themselves.
 
-4.	Lien avec le sens du mot : l’élément qui forme la lettre existe naturellement dans la réalité évoquée par le mot.
+4. Link to the meaning of the word: the element forming the letter must naturally exist in the reality evoked by the word.
 
-5.	Pas d’artifice graphique : jamais de lettre collée/décorative, jamais de déformation du sujet uniquement pour fabriquer la lettre.
+5. No graphic artifice: never a pasted-on or decorative letter, never a distortion of the subject solely to fabricate the letter.
 
-6.	Association mémorisable pour un enfant : lien intuitif lettre → élément → sens → orthographe.
+6. Memorable association for a child: intuitive link letter → element → meaning → spelling.
 
-7.	Simplicité et clarté : illustration épurée, ce qui porte la lettre est visuellement évident.
+7. Simplicity and clarity: clean illustration, what carries the letter must be visually obvious.
 
-8.	Cohérence et naturalité : le dessin reste réaliste et crédible, intégration naturelle dans la scène.
+8. Coherence and naturalness: the drawing remains realistic and credible, naturally integrated into the scene.
 
-9.	Adapté au niveau de l’enfant : style accessible, chaleureux.
+9. Adapted to the child's level: accessible, warm style.
 
-10.	Mise en valeur de la lettre difficile : reconnaissable dans sa forme correcte (ex: Z reste un Z, pas un 2).
+10. Highlighting the difficult letter: recognizable in its correct form (e.g.: Z stays a Z, not a 2).
 
-11.	(ajout de l’utilisatrice, validé par test) Fidélité au réel : les éléments représentés gardent une apparence semblable à la réalité — seules des déformations mineures et non choquantes sont acceptées, y compris sur les parties de l’élément qui ne portent pas directement la lettre.
+11. (added by the user, validated through testing) Fidelity to reality: the depicted elements must retain an appearance similar to reality — only minor, non-jarring distortions are acceptable, including on the parts of the element that do not directly carry the letter.
 
-Principe méthodologique clé, à ne jamais perdre : le raisonnement doit partir du sens du mot pour chercher une forme existante qui épouse la lettre — jamais l’inverse (partir de la forme de la lettre et inventer une scène artificielle autour)
+Key methodological principle, never to be lost: the reasoning must start from the meaning of the word to find an existing shape that matches the letter — never the reverse (starting from the letter's shape and inventing an artificial scene around it).
 
-## 4. Tâche
+## 4. Task
 
-Mot à illustrer : ${word}
+Word to illustrate: ${word}
 
-Lettre(s) à mémoriser : ${letters}
+Letter(s) to memorize: ${letters}
 
-Position exacte de cette/ces lettre(s) dans le mot : ${positions}
+Exact position of this/these letter(s) in the word: ${positions}
 
-Génère une illustration respectant scrupuleusement les 11 principes ci-dessus pour ce mot et ces lettres précis, à la position indiquée.
-Seule(s)  ${letters} doit/doivent être transformée(s) ou fusionnée(s) avec un élément visuel. Toutes les AUTRES lettres du mot doivent rester dans leur police simple, noire, sans aucune modification, exactement comme le reste du texte — aucune couleur, aucune texture, aucun élément dessiné dessus ou à travers elles.
+Generate an illustration that strictly respects the 11 principles above for this specific word and letter(s), at the indicated position.
+Only ${letters} must be transformed or fused with a visual element. All OTHER letters in the word must remain in simple, plain black font, unmodified, exactly like the rest of the text — no color, no texture, no element drawn on or through them.
 
-## 5. Format de sortie
+## 5. Output format
 
-Style : illustration simple, colorée, chaleureuse, adaptée aux enfants. Fond blanc ou très clair. Aucun texte additionnel, titre ou légende — uniquement le mot lui-même, écrit intégralement en LETTRES MAJUSCULES, en noir, intégré à l'illustration comme décrit ci-dessus.`;
+Style: simple, colorful, warm illustration, suitable for children. White or very light background. No additional text, title, or caption — only the word itself, written entirely in UPPERCASE LETTERS, in black, integrated into the illustration as described above.;
 
+## 6. Suggested illustration (optional): ${concept}`
 }
+
 
 module.exports = {buildIllustrationPrompt}

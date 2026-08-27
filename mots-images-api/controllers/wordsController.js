@@ -1,151 +1,175 @@
-const { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank, getWordById } = require('../models/wordModel')
-const { getAiGenerationsCount, incrementAiGenerationsCount } = require('../models/teacherModel')
-const { buildIllustrationPrompt } = require('../prompts/illustrationPrompt')
-const {getLettersPositions} = require('../utils/getLettersPositions')
-require('dotenv').config()
-const OpenAI = require('openai').default
+const {
+  createWord,
+  getWords,
+  wordForStudents,
+  updateWord,
+  deleteWordFromBank,
+  getWordById,
+} = require("../models/wordModel")
+
+const {
+  getAiGenerationsCount,
+  incrementAiGenerationsCount,
+} = require("../models/teacherModel")
+
+const { buildIllustrationPrompt } = require("../prompts/illustrationPrompt")
+const { buildConceptPrompt } = require("../prompts/responsesPrompt")
+const { getLettersPositions } = require("../utils/getLettersPositions")
+
+require("dotenv").config()
+const OpenAI = require("openai").default
 
 const openai = new OpenAI()
 
-
 const createWordController = async (req, res) => {
-    try {
-        const {text, sentence} = req.body
-        const teacherId = req.teacherId
+  try {
+    const { text, sentence } = req.body
+    const teacherId = req.teacherId
 
-        const word = await createWord(text, sentence, teacherId)
+    const word = await createWord(text, sentence, teacherId)
 
-        console.log(word);
-        res.status(201).json(word)
-
-    } catch(error) {
-        res.status(500).json(error.message)
-    }
+    console.log(word)
+    res.status(201).json(word)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
 }
 
 const getWordsController = async (req, res) => {
-    try {
-        const teacher_id = req.teacherId
+  try {
+    const teacher_id = req.teacherId
 
-        const words = await getWords(teacher_id)
+    const words = await getWords(teacher_id)
 
-        console.log(words);
-        res.status(200).json(words)    
-
-    } catch (error) {
-        res.status(500).json(error.message)
-    }
+    console.log(words)
+    res.status(200).json(words)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
 }
 
 const postWordForStudentsController = async (req, res) => {
-    const wordId = req.params.wordId
-    const {studentIds} = req.body
-    const teacherId = req.teacherId
-    //{ "studentIds": [3, 7, 12] }
+  const wordId = req.params.wordId
+  const { studentIds } = req.body
+  const teacherId = req.teacherId
+  //{ "studentIds": [3, 7, 12] }
 
-    const words = await getWords(teacherId)
+  const words = await getWords(teacherId)
 
-    if (words.find(word => word.id === Number(wordId))) {
-        try {
-        const result = await wordForStudents(wordId, studentIds)
+  if (words.find((word) => word.id === Number(wordId))) {
+    try {
+      const result = await wordForStudents(wordId, studentIds)
 
-        console.log(result)
-        res.status(201).json(result)
-
-        } catch (error) {
-            res.status(500).json(error.message)
-        }
-    } else {
-        res.status(403).json('Forbidden')
-    }    
+      console.log(result)
+      res.status(201).json(result)
+    } catch (error) {
+      res.status(500).json(error.message)
+    }
+  } else {
+    res.status(403).json("Forbidden")
+  }
 }
 
 const updateWordController = async (req, res) => {
-    const wordId = req.params.wordId
-    const { zones, sentence } = req.body
-    const zonesString = JSON.stringify(zones)
-    const teacherId = req.teacherId
+  const wordId = req.params.wordId
+  const { zones, sentence } = req.body
+  const zonesString = JSON.stringify(zones)
+  const teacherId = req.teacherId
 
-    const words = await getWords(teacherId)
-    const wordIsValid = words.find(word => word.id === Number(wordId))
+  const words = await getWords(teacherId)
+  const wordIsValid = words.find((word) => word.id === Number(wordId))
 
-    if(wordIsValid) {
-        try {
-            const response = await updateWord(wordId, zonesString, sentence, teacherId)
-            if (!response) {
-                return res.status(404).json('Word not found')
-            }
-            res.status(200).json(response)
-        } catch (error) {
-            res.status(500).json(error.message)
-        }        
-    } else {
-        res.status(403).json("Forbidden")
+  if (wordIsValid) {
+    try {
+      const response = await updateWord(
+        wordId,
+        zonesString,
+        sentence,
+        teacherId,
+      )
+      if (!response) {
+        return res.status(404).json("Word not found")
+      }
+      res.status(200).json(response)
+    } catch (error) {
+      res.status(500).json(error.message)
     }
+  } else {
+    res.status(403).json("Forbidden")
+  }
 }
 
 const deleteWordFromBankController = async (req, res) => {
-    const wordId = req.params.wordId
-    const teacherId = req.teacherId
+  const wordId = req.params.wordId
+  const teacherId = req.teacherId
 
-    try {
-        const response = await deleteWordFromBank(wordId, teacherId)
+  try {
+    const response = await deleteWordFromBank(wordId, teacherId)
 
-        if(response.length > 0) {
-            res.status(200).json(response)
-        } else {
-            return res.status(404).json('Word not found')
-        }
-        
-    } catch (error) {
-        res.status(500).json(error.message)
+    if (response.length > 0) {
+      res.status(200).json(response)
+    } else {
+      return res.status(404).json("Word not found")
     }
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
 }
-
 
 const generateIllustrationController = async (req, res) => {
-    const wordId = req.params.wordId
-    const teacherId = req.teacherId
-    const {letters, positions} = req.body
+  const wordId = req.params.wordId
+  const teacherId = req.teacherId
+  const { letters, positions } = req.body
 
-    try {
-        const word = await getWordById(wordId, teacherId)
-        if(!word) {
-            return res.status(403).json('Forbidden')
-        }
-
-        const positionsPrompt = getLettersPositions(positions)
-        const prompt = buildIllustrationPrompt(word.text, letters, positionsPrompt)
-        const count = await getAiGenerationsCount(teacherId)
-
-        if(count < 5) {
-            const result = await openai.images.generate({
-                model: "gpt-image-2",
-                prompt,
-                n: 3
-            });
-
-            const illustrations = result.data.map((data, index) => ({
-                id : index,
-                image : data.b64_json
-            }))
-
-            await incrementAiGenerationsCount(teacherId)
-            res.status(200).json({illustrations})
-        } else {
-            return res.status(429).json('Vous avez atteint la limite autorisée')
-        }
-
-    } catch(error) {
-        if(error.name === 'ValidationError') {
-            res.status(400).json(error.message)
-        } else {
-            res.status(500).json(error.message)
-        }
-        
+  try {
+    const word = await getWordById(wordId, teacherId)
+    if (!word) {
+      return res.status(403).json("Forbidden")
     }
+
+    const positionsPrompt = getLettersPositions(positions)
+    const conceptPrompt = buildConceptPrompt(word.text, letters, positionsPrompt)
+    const count = await getAiGenerationsCount(teacherId)
+
+    if (count < 5) {
+      const response = await openai.responses.create({
+        model: "gpt-4.1-mini",
+        input: conceptPrompt,
+      })
+      
+      const concept = response.output[0].content[0].text
+      const illustrationPrompt = buildIllustrationPrompt(word.text, letters, positionsPrompt, concept)
+
+      const result = await openai.images.generate({
+        model: "gpt-image-2",
+        prompt: illustrationPrompt,
+        n: 3,
+      })
+
+      const illustrations = result.data.map((data, index) => ({
+        id: index,
+        image: data.b64_json,
+      }))
+
+      await incrementAiGenerationsCount(teacherId)
+      res.status(200).json({ illustrations })
+    } else {
+      return res.status(429).json("Vous avez atteint la limite autorisée")
+    }
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      res.status(400).json(error.message)
+    } else {
+      res.status(500).json(error.message)
+    }
+  }
 }
 
-
-
-module.exports = { createWordController, getWordsController, postWordForStudentsController, updateWordController, deleteWordFromBankController, generateIllustrationController}
+module.exports = {
+  createWordController,
+  getWordsController,
+  postWordForStudentsController,
+  updateWordController,
+  deleteWordFromBankController,
+  generateIllustrationController,
+}
