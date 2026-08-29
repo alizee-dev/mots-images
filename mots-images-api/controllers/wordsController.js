@@ -28,7 +28,7 @@ const createWordController = async (req, res) => {
 
     const word = await createWord(text, sentence, teacherId)
 
-    console.log(word)
+    //console.log(word)
     res.status(201).json(word)
   } catch (error) {
     res.status(500).json(error.message)
@@ -41,7 +41,7 @@ const getWordsController = async (req, res) => {
 
     const words = await getWords(teacher_id)
 
-    console.log(words)
+    //console.log(words)
     res.status(200).json(words)
   } catch (error) {
     res.status(500).json(error.message)
@@ -60,7 +60,7 @@ const postWordForStudentsController = async (req, res) => {
     try {
       const result = await wordForStudents(wordId, studentIds)
 
-      console.log(result)
+      //console.log(result)
       res.status(201).json(result)
     } catch (error) {
       res.status(500).json(error.message)
@@ -131,13 +131,14 @@ const generateIllustrationController = async (req, res) => {
     const conceptPrompt = buildConceptPrompt(word.text, letters, positionsPrompt)
     const count = await getAiGenerationsCount(teacherId)
 
-    if (count < 5) {
+    if (count < 250) {
       const response = await openai.responses.create({
-        model: "gpt-4.1-mini",
+        model: "gpt-5.6-sol",
         input: conceptPrompt,
       })
       
-      const concept = response.output[0].content[0].text
+      const concept = response.output_text
+      console.log(concept)
       const illustrationPrompt = buildIllustrationPrompt(word.text, letters, positionsPrompt, concept)
 
       const result = await openai.images.generate({

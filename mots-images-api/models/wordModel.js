@@ -14,7 +14,7 @@ const getWords = async (teacherId) => {
         FROM words
         WHERE teacher_id = $1 AND in_bank = true`, [teacherId]
     )
-    console.log(result.rows);
+    //console.log(result.rows);
     return result.rows     
 }
 
@@ -30,7 +30,7 @@ const wordForStudents = async (wordId, studentsId) => {
     pairs.push(result.rows[0])
     }
     
-    console.log(pairs);
+    //console.log(pairs);
     return pairs
 }
 
@@ -41,7 +41,7 @@ const updateWord = async (wordId, zones, sentence, teacherId) => {
         WHERE id = $3 AND teacher_id = $4
         RETURNING id, text, sentence, zones`, [sentence, zones, wordId, teacherId ])
     
-    console.log(result.rows);
+    //console.log(result.rows);
     return result.rows[0]
 }
 
@@ -52,7 +52,7 @@ const deleteWordFromBank = async (wordId, teacherId) => {
         WHERE id = $1 AND teacher_id = $2
         RETURNING id, in_bank`, [wordId, teacherId]
     )
-    console.log(result.rows);
+    //console.log(result.rows);
     return result.rows
 }
 

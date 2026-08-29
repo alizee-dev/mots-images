@@ -193,13 +193,13 @@ Returns (200): `{ id, in_bank }`
 Returns (404) if no matching word is found for this teacher.
 
 **POST /words/:wordId/generate-illustration** *(beta)*
-Generates 3 AI illustration proposals for a word, targeting a specific letter or consecutive group of letters. Uses OpenAI's image generation API. Images are returned as base64-encoded strings — nothing is persisted until the teacher selects one (see PUT /words/:wordId to save the final choice). Each teacher has a limited number of generations (`ai_generations_count` on the `teachers` table).
+Generates 3 AI illustration proposals for a word, targeting a specific letter or consecutive group of letters. Uses a two-step pipeline: OpenAI's Responses API first generates a text concept for the illustration, which is then injected into the prompt sent to OpenAI's image generation API (`gpt-image-2`) to produce 3 variations. Images are returned as base64-encoded strings — nothing is persisted until the teacher selects one (see PUT /words/:wordId to save the final choice). Each teacher has a limited number of generations (`ai_generations_count` on the `teachers` table).
 Body: `{ letters: string, positions: number[] }` — `positions` must be an array of consecutive 1-based indices matching the target letter(s) in the word.
 Returns (200): `{ illustrations: [{ id, image }, ...] }`
 Returns (400) if `positions` is empty or contains non-consecutive indices.
 Returns (403) if the word doesn't belong to the authenticated teacher.
 Returns (429) if the teacher has reached their generation quota.
-Returns (500) if the OpenAI API call fails.
+Returns (500) if the OpenAI API call (text or image step) fails.
 
 ### Series
 
