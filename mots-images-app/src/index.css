@@ -172,6 +172,13 @@ h3 {
 }
 
 .word-input {
+  /* Plain <input> elements don't stretch to fill a flex/block container on
+     their own — without this, every .word-input (including the word bank's
+     search field) sits at the browser's small intrinsic default width
+     instead of adapting to its container, which is especially cramped on
+     narrow screens. max-width keeps it from growing unreasonably wide on
+     desktop. */
+  width: 100%;
   font-size: 2rem;
   padding: 14px 20px;
   border: 3px solid var(--color-border);
@@ -183,6 +190,17 @@ h3 {
   background: var(--color-surface);
   color: var(--color-text);
   font-family: inherit;
+}
+
+/* Inside a row layout (.inline-form — e.g. the word bank's search field
+   next to its "Illustrer" button), width:100% above would claim the whole
+   row and push the sibling button onto its own line. flex:1 grows/shrinks
+   it to share the row instead, down to a sensible minimum before the row
+   wraps (via .inline-form's own flex-wrap). */
+.inline-form .word-input {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 200px;
 }
 
 .word-input:focus {
@@ -596,6 +614,19 @@ h3 {
   .editor-panel {
     padding: 16px;
   }
+  /* At 2rem, .word-input's own font size alone pushes its practical
+     minimum width past what fits next to a sibling button (e.g. the word
+     bank's "Illustrer") on a narrow phone — shrinking it here, alongside
+     letting it shrink past its default content-based minimum, is what
+     actually lets it fit rather than force the row to overflow or the
+     button off to a cramped second line. */
+  .word-input {
+    font-size: 1.3rem;
+    padding: 10px 14px;
+  }
+  .inline-form .word-input {
+    min-width: 0;
+  }
 }
 
 @media print {
@@ -744,10 +775,100 @@ h3 {
   gap: 20px;
 }
 
+.dashboard-greeting {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* The two main parent actions — bigger and more colorful than anything else
+   on the dashboard, so they read as the obvious next step at a glance. */
+.dashboard-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dashboard-hero-btn {
+  flex: 1 1 260px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 26px;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+.dashboard-hero-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-panel);
+}
+
+.dashboard-hero-btn:active {
+  transform: scale(0.98);
+}
+
+.dashboard-hero-btn-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.dashboard-hero-btn-primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.dashboard-hero-btn-accent {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+/* Same three destinations as before, kept as a secondary, visually quieter
+   row beneath the two hero actions — smaller icons, no shadow, no card-tab
+   flourish — rather than removed or turned into a new feature. */
+.dashboard-secondary-heading {
+  margin: 6px 0 -6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .dashboard-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 18px;
+}
+
+.dashboard-tiles-secondary {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.dashboard-tiles-secondary .dashboard-tile {
+  padding: 16px 18px;
+  gap: 4px;
+  box-shadow: none;
+}
+
+.dashboard-tiles-secondary .dashboard-tile::before {
+  display: none;
+}
+
+.dashboard-tiles-secondary .dashboard-tile-icon {
+  font-size: 1.6rem;
+}
+
+.dashboard-tiles-secondary .dashboard-tile-title {
+  font-size: 1rem;
 }
 
 .dashboard-tile {
@@ -1339,6 +1460,57 @@ h3 {
   font-weight: 700;
 }
 
+/* Word bank pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.pagination-arrow {
+  min-width: 44px;
+}
+
+.pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pagination-page {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pagination-page:hover {
+  background: var(--color-surface-muted-hover);
+}
+
+.pagination-page.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.pagination-ellipsis {
+  color: var(--color-text-muted);
+  padding: 0 2px;
+}
+
+@media (max-width: 640px) {
+  .pagination {
+    flex-wrap: wrap;
+  }
+}
+
 .word-bank-item {
   position: relative;
 }
@@ -1428,6 +1600,66 @@ h3 {
   color: var(--color-text);
   font-weight: 600;
   font-size: 0.92rem;
+}
+
+/* A generic two-option toggle (e.g. "Mes mots illustrés" / "Tous les mots
+   illustrés") — same visual language as .btn-tab, just named for where it's
+   used so it isn't confused with the illustration editor's own tabs. */
+.scope-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+/* Print layout picker (word bank "Imprimer") */
+.print-layout-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.print-layout-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.print-layout-option:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-muted);
+}
+
+.print-layout-option input {
+  margin-right: 8px;
+}
+
+.print-layout-option-title {
+  font-weight: 700;
+}
+
+.print-layout-option-desc {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-left: 24px;
+}
+
+/* Word bank print export staging — off-screen, purely so Konva paints each
+   selected word's canvas; WordsBankPage then reads those canvases and
+   exports them as flat images for a separate print window (see
+   printDocument.js), which is what actually gets printed. Nothing here is
+   ever meant to be visible or to print directly, so unlike earlier attempts
+   at this feature, there's no @media print rule to keep in sync with
+   anything else. */
+.bank-print-stage {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  display: flex;
+  flex-wrap: wrap;
 }
 
 /* ============================================================
@@ -1520,4 +1752,504 @@ h3 {
 
 .test-hint-illustration .illustrated-preview-frame {
   height: 220px;
+}
+
+/* ============================================================
+   Practice session (free, ungraded, purely local — see
+   PracticeSessionPage). Built on the same "Clairière" tokens as the test
+   screen above (.test-scope is applied alongside .practice-scope), so
+   colors stay identical — only the layout/interactions differ.
+   ============================================================ */
+
+.practice-entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+}
+
+.practice-level-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.practice-level-links-label {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-right: 2px;
+}
+
+.practice-series-title {
+  text-align: center;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.practice-progress {
+  max-width: 560px;
+  width: 100%;
+  margin: 8px auto 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.practice-progress-level {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  display: inline-block;
+  background: var(--color-surface-muted);
+  padding: 4px 14px;
+  border-radius: 999px;
+  align-self: center;
+}
+
+.practice-progress-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.practice-progress-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.practice-stage {
+  max-width: 640px;
+  /* A flex item's default min-width is `auto`, meaning "never shrink
+     narrower than my own content" — with the tile rows now forced onto one
+     non-wrapping, horizontally-scrolling line (see .tile-slot-row /
+     .tile-bank-row), that content can be wider than a phone screen, and
+     every flex-column ancestor down this chain (.practice-stage →
+     .practice-level → .tile-rack) would otherwise inherit that same
+     "won't shrink" refusal and get pushed wider than the page itself
+     instead of just letting the one row scroll. min-width: 0 breaks that
+     chain at each level. */
+  min-width: 0;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 30px 26px;
+}
+
+/* Docked top-left (align-self overrides .practice-stage's own centered
+   items just for this one child) instead of centered above the word — see
+   PracticeMascot. Keeps the mascotte from ever competing with or covering
+   the word-image, which stays the one dominant element on screen. */
+.practice-mascot-dock {
+  align-self: flex-start;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 64px;
+}
+
+.practice-stage-content {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.practice-mascot {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.practice-mascot-happy {
+  animation: practice-mascot-bounce 0.5s ease;
+}
+
+.practice-mascot-encouraging {
+  animation: practice-mascot-wiggle 0.5s ease;
+}
+
+/* A speech bubble beside the mascotte, tail pointing at it — a coded UI
+   element (colored background, text, CSS-drawn tail), not a new image, and
+   never a full-screen banner: the word/card underneath keeps showing
+   throughout. Used for every message the mascotte "says" — feedback and
+   the levels 2/3 "listen" prompt alike — so they all look and behave the
+   same way. The optional replay icon (see .practice-mascot-bubble-icon)
+   sits inline at the end of the bubble's own text, not as a separate
+   button beside it. */
+.practice-mascot-bubble {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Grows to fill whatever room is left beside the mascotte instead of a
+     small fixed cap — a narrow fixed width is what forced longer messages
+     ("Le mot exact est poisson, essaie encore !") to wrap one or two words
+     per line on a phone. max-width only guards against absurdly long
+     lines on a wide desktop window. */
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.35;
+  animation: practice-feedback-in 0.2s ease;
+}
+
+.practice-mascot-bubble::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 7px 8px 7px 0;
+  border-style: solid;
+  /* Matches each tone's own background below, not the text color, so the
+     tail reads as part of the same bubble shape rather than a mismatched
+     solid triangle. */
+  border-color: transparent var(--practice-mascot-bubble-bg, var(--color-surface-muted)) transparent transparent;
+}
+
+.practice-mascot-bubble-positive {
+  --practice-mascot-bubble-bg: color-mix(in srgb, var(--color-success) 18%, white);
+  background: var(--practice-mascot-bubble-bg);
+  color: var(--color-success);
+}
+
+.practice-mascot-bubble-gentle {
+  --practice-mascot-bubble-bg: var(--color-danger-bg);
+  background: var(--practice-mascot-bubble-bg);
+  color: var(--color-danger);
+}
+
+.practice-mascot-bubble-neutral {
+  --practice-mascot-bubble-bg: var(--color-surface-muted);
+  background: var(--practice-mascot-bubble-bg);
+  color: var(--color-text);
+}
+
+/* The "hear the word" replay control, integrated into the bubble itself
+   rather than a separate button — tapping it never removes or hides the
+   bubble's own message. */
+.practice-mascot-bubble-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  color: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.practice-mascot-bubble-icon:active {
+  transform: scale(0.92);
+}
+
+@keyframes practice-mascot-bounce {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18) translateY(-6px);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes practice-mascot-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-mascot-happy,
+  .practice-mascot-encouraging {
+    animation: none;
+  }
+}
+
+@keyframes practice-feedback-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.practice-level {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.practice-image-frame {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.practice-sentence {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+
+/* Letter tile rack (levels 1 & 2) */
+.tile-rack {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Always a single line — the word being built and the reserve both need to
+   stay readable as one row even on a narrow phone, so a long word shrinks
+   its tiles evenly (see .letter-tile below) instead of wrapping onto a
+   second line, which would break the left-to-right reading order the
+   letters need to keep. */
+.tile-slot-row,
+.tile-bank-row {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 64px;
+  min-width: 0;
+  width: 100%;
+}
+
+.tile-slot-row {
+  padding: 10px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  align-items: center;
+}
+
+/* One of these fills the gap left by a cleared slot (see LetterTileRack) —
+   same sizing rules as a real tile (flex: 1 1 0, square via aspect-ratio),
+   so the row's shape doesn't jump around as the child places or removes
+   letters. */
+.letter-tile-empty-slot {
+  display: inline-block;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 56px;
+  aspect-ratio: 1;
+  border: 2px dashed var(--color-border);
+  /* Matches .letter-tile's own radius (see there) so an empty slot and a
+     filled tile always share the same shape, at any size. */
+  border-radius: 22%;
+}
+
+/* Large tap targets by default, but never at the cost of overflowing the
+   row: flex: 1 1 0 divides the row's available width evenly across every
+   tile, shrinking them all together (down to a small floor) rather than
+   overflowing or wrapping once there are too many to fit at full size.
+   max-width caps them so a short word's few tiles don't stretch huge, and
+   aspect-ratio keeps each tile square as it grows or shrinks — no
+   distortion into a squashed rectangle. */
+.letter-tile {
+  /* Explicit flex-centering rather than relying on a <button>'s default
+     text alignment (which centers horizontally but not vertically, and
+     varies enough across browsers that a tall, roughly square tile could
+     end up with the glyph sitting near the top instead of centered). */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  /* font-size in cqw (container query width units), sized off this tile's
+     own rendered width via container-type — not vw (viewport width),
+     which has no idea how many tiles are sharing the row. A word with
+     more letters shrinks each tile (flex: 1 1 0) without the viewport
+     changing at all, so a vw-based size kept assuming there was more room
+     than there actually was. */
+  container-type: inline-size;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 56px;
+  aspect-ratio: 1;
+  padding: 4px;
+  font-size: clamp(0.75rem, 45cqw, 1.4rem);
+  font-weight: 700;
+  border: none;
+  /* A percentage radius (not var(--radius-sm), a fixed 14px in this
+     theme) so the corners stay proportional to the tile's own size — a
+     fixed px radius stops scaling down with the tile, and once a long
+     word shrinks tiles far enough it turns "rounded square" into a
+     circle. */
+  border-radius: 22%;
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.08s ease;
+  /* No overflow: hidden — clipping is what turned any residual sizing
+     mismatch into an unreadable sliver instead of just a slightly large
+     letter. A letter poking very slightly past a rounded corner is far
+     more legible than one silently cut down to a fragment. */
+  overflow: visible;
+}
+
+.letter-tile:active {
+  transform: scale(0.94);
+}
+
+.letter-tile:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.letter-tile-placed {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* Level 3 answer form */
+.practice-answer-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.practice-answer-input {
+  text-align: center;
+  font-size: 1.3rem;
+  width: 100%;
+  max-width: 340px;
+  /* .word-input sets font-family: inherit (correct for its other, non-dys
+     uses elsewhere) — this re-asserts OpenDyslexic for this one input,
+     since same-specificity + .word-input's later position in this file
+     would otherwise silently win over .font-dys here. */
+  font-family: 'OpenDyslexic', var(--font-system);
+}
+
+.practice-validate-btn {
+  transition: background 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* After 10s without a validation attempt (see PracticeLevel3) — a warmer,
+   more saturated shade of the same accent color, plus a soft glow. Never
+   red, never blinking: a nudge, not an alarm. */
+.practice-validate-btn-attention {
+  background: color-mix(in srgb, var(--color-accent) 80%, black);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* Reward screen */
+.practice-reward {
+  max-width: 480px;
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 40px 30px;
+}
+
+.practice-reward-stars {
+  font-size: 3rem;
+  display: flex;
+  gap: 6px;
+}
+
+.practice-star {
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+
+.practice-star-filled {
+  opacity: 1;
+  filter: none;
+}
+
+.practice-reward-message {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  margin: 0;
+}
+
+.practice-reward-detail {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .test-scope {
+    padding: 24px 14px;
+  }
+  .practice-stage {
+    padding: 20px 16px;
+    gap: 14px;
+  }
+  .practice-image-frame {
+    padding: 10px;
+    width: 100%;
+  }
+  .practice-mascot {
+    width: 52px;
+    height: 52px;
+  }
+  .practice-mascot-bubble {
+    /* No max-width override here — flex: 1 1 auto (base rule) already
+       lets it use the real available width next to the mascotte, which on
+       a phone is most of the card. A small fixed cap is what previously
+       forced long messages to wrap one or two words per line. */
+    font-size: 0.92rem;
+    padding: 8px 12px;
+  }
+  .practice-sentence {
+    font-size: 1.15rem;
+  }
+  .practice-entry-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .practice-level-links {
+    justify-content: center;
+  }
 }

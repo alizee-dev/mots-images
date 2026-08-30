@@ -18,7 +18,7 @@ export default function SeriesListPage() {
 
   const handleArchive = async (s) => {
     if (
-      !window.confirm(`Supprimer définitivement la série « ${s.title} » ? Cette action est irréversible.`)
+      !window.confirm(`Supprimer définitivement l’entraînement « ${s.title} » ? Cette action est irréversible.`)
     ) {
       return
     }
@@ -40,16 +40,16 @@ export default function SeriesListPage() {
         <Link to="/">← Accueil</Link>
       </p>
       <div className="page-header-row">
-        <h2>Mes séries</h2>
+        <h2>Entraînements</h2>
         <Link to="/series/new" className="btn btn-toggle active">
-          ➕ Nouvelle série
+          ➕ Nouvel entraînement
         </Link>
       </div>
 
       {error && <p className="form-error">{error}</p>}
       {loading && <p>Chargement…</p>}
 
-      {!loading && series.length === 0 && <p className="empty-hint">Aucune série pour l’instant.</p>}
+      {!loading && series.length === 0 && <p className="empty-hint">Aucun entraînement pour l’instant.</p>}
 
       <ul className="card-list">
         {series.map((s) => (
@@ -63,7 +63,7 @@ export default function SeriesListPage() {
               className="icon-btn-danger"
               onClick={() => handleArchive(s)}
               disabled={archivingId === s.id}
-              aria-label={`Supprimer définitivement la série "${s.title}"`}
+              aria-label={`Supprimer définitivement l'entraînement "${s.title}"`}
               title="Supprimer définitivement"
             >
               <TrashIcon />

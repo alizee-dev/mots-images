@@ -58,6 +58,12 @@ export default function WordEditorPage() {
   const fromSeries = fromSeriesId
     ? { seriesId: fromSeriesId, title: searchParams.get('fromSeriesTitle') || null }
     : null
+  // Set by both word-creation entry points — the bank's "✨ Illustrer" button
+  // (which creates the word itself, see WordsBankPage) and this page's own
+  // creation form below — so a parent lands straight on the letter-picking
+  // step instead of the blank manual editor once the freshly-created word's
+  // edit screen appears.
+  const autoAi = searchParams.get('autoAi') === '1'
 
   const [textDraft, setTextDraft] = useState('')
   const [creationError, setCreationError] = useState(null)
@@ -144,12 +150,14 @@ export default function WordEditorPage() {
         setSentence(found.sentence || '')
         setZones(found.zones || [])
         setSavedSnapshot({ sentence: found.sentence || '', zones: found.zones || [] })
+        if (autoAi) startAiFlow()
       })
       .catch((err) => setLoadError(err.message))
       .finally(() => {
         setLoading(false)
         loadedOnce.current = true
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordId, isNew])
 
   const hasUnsavedChanges = Boolean(
@@ -208,7 +216,7 @@ export default function WordEditorPage() {
     setCreationError(null)
     try {
       const word = await createWord(text, '')
-      navigate(`/words/${word.id}`, { replace: true })
+      navigate(`/words/${word.id}?autoAi=1`, { replace: true })
     } catch (err) {
       setCreationError(err.message)
       setSubmitting(false)
@@ -491,7 +499,7 @@ export default function WordEditorPage() {
   if (isNew) {
     return (
       <div className="page">
-        <h2>Nouveau mot</h2>
+        <h2>Illustrer un mot</h2>
         <form className="word-create-form" onSubmit={handleCreate}>
           <label htmlFor="new-word-text" className="word-input-label">
             Mot

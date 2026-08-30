@@ -1,7 +1,9 @@
 import { apiFetch } from './client'
 
-export function getWords() {
-  return apiFetch('/words')
+// By default returns only the parent's own words. Pass includeCommonWords to
+// also fetch words shared by other teachers (GET /words?includeCommonWords=true).
+export function getWords({ includeCommonWords = false } = {}) {
+  return apiFetch(`/words${includeCommonWords ? '?includeCommonWords=true' : ''}`)
 }
 
 export function createWord(text, sentence) {

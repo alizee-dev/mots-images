@@ -14,6 +14,7 @@ import WordEditorPage from './pages/words/WordEditorPage'
 import SeriesListPage from './pages/series/SeriesListPage'
 import NewSeriesPage from './pages/series/NewSeriesPage'
 import SeriesDetailPage from './pages/series/SeriesDetailPage'
+import PracticeSessionPage from './pages/series/PracticeSessionPage'
 import TestSessionPage from './pages/students/TestSessionPage'
 import './index.css'
 
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/series" element={<SeriesListPage />} />
               <Route path="/series/new" element={<NewSeriesPage />} />
               <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
+              <Route path="/series/:seriesId/practice" element={<PracticeSessionPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

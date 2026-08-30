@@ -4,14 +4,23 @@ import { useAuth } from './auth/AuthContext'
 import { TestGuardContext } from './testGuardContext'
 
 const TEST_ROUTE_PATTERN = /^\/students\/[^/]+\/assignments\/[^/]+\/test$/
+// Practice is ungraded and purely local (see PracticeSessionPage), so
+// unlike the real test it never sets `testGuard` below — leaving early
+// costs nothing to confirm.
+const PRACTICE_ROUTE_PATTERN = /^\/series\/[^/]+\/practice$/
 
 export default function Layout() {
   const { logout } = useAuth()
-  const { studentId } = useParams()
+  const { studentId, seriesId } = useParams()
   const location = useLocation()
   const [testGuard, setTestGuard] = useState(null)
 
   const isTestScreen = TEST_ROUTE_PATTERN.test(location.pathname)
+  const isPracticeScreen = PRACTICE_ROUTE_PATTERN.test(location.pathname)
+  // Both are the same kind of immersive, distraction-free screen — full nav
+  // swapped for a single "quitter" link — just with a different
+  // destination and label.
+  const isImmersiveScreen = isTestScreen || isPracticeScreen
 
   const handleExitClick = (e) => {
     if (testGuard && !window.confirm(testGuard)) {
@@ -21,14 +30,14 @@ export default function Layout() {
 
   return (
     <div className="app">
-      {isTestScreen ? (
+      {isImmersiveScreen ? (
         <div className="test-exit-bar no-print">
           <Link
-            to={studentId ? `/students/${studentId}` : '/students'}
+            to={isTestScreen ? (studentId ? `/students/${studentId}` : '/students') : `/series/${seriesId}`}
             className="test-exit-link"
             onClick={handleExitClick}
           >
-            ← Quitter le test
+            {isTestScreen ? '← Quitter le test' : '← Quitter l’entraînement'}
           </Link>
         </div>
       ) : (
@@ -50,19 +59,19 @@ export default function Layout() {
               🏠 Accueil
             </NavLink>
             <NavLink to="/students" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Mes élèves
+              Enfants
             </NavLink>
             <NavLink to="/words" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
               Banque de mots
             </NavLink>
             <NavLink to="/series" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Mes séries
+              Entraînements
             </NavLink>
           </nav>
         </header>
       )}
 
-      <main className={isTestScreen ? 'app-main app-main-bare' : 'app-main'}>
+      <main className={isImmersiveScreen ? 'app-main app-main-bare' : 'app-main'}>
         <TestGuardContext.Provider value={{ setTestGuard }}>
           <Outlet />
         </TestGuardContext.Provider>

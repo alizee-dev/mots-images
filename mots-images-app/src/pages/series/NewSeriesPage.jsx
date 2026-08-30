@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { createWord, getWords, updateWord } from '../../api/words'
 import { addWordsToSeries, createSeries } from '../../api/series'
 
 export default function NewSeriesPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // Set when arriving from the word bank's "Créer un entraînement" bulk
+  // action (see WordsBankPage) — applied once, the first time the word list
+  // for step 'words' loads, so it doesn't fight with the parent manually
+  // removing one of these words afterward.
+  const prefillWordIds = location.state?.prefillWordIds || null
   const [step, setStep] = useState('title')
   const [title, setTitle] = useState('')
   const [seriesId, setSeriesId] = useState(null)
@@ -29,9 +35,29 @@ export default function NewSeriesPage() {
     if (step !== 'words') return
     setWordsLoading(true)
     getWords()
-      .then(setWords)
+      .then((list) => {
+        setWords(list)
+        if (prefillWordIds && prefillWordIds.length > 0) {
+          const toPrefill = list.filter((w) => prefillWordIds.includes(w.id))
+          setSelected((prev) => {
+            const existingIds = new Set(prev.map((w) => w.id))
+            return [...prev, ...toPrefill.filter((w) => !existingIds.has(w.id))]
+          })
+          setSentenceFieldIds((prev) => {
+            const next = new Set(prev)
+            toPrefill.forEach((w) => {
+              if (!w.sentence) next.add(w.id)
+            })
+            return next
+          })
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setWordsLoading(false))
+    // Only re-runs when `step` changes (i.e. once, on entering 'words') —
+    // prefillWordIds is deliberately excluded so this doesn't re-apply and
+    // fight a manual removal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
   const handleCreateTitle = async (e) => {
@@ -127,12 +153,12 @@ export default function NewSeriesPage() {
     return (
       <div className="page">
         <p className="breadcrumb">
-          <Link to="/series">← Mes séries</Link>
+          <Link to="/series">← Entraînements</Link>
         </p>
-        <h2>Nouvelle série</h2>
+        <h2>Nouvel entraînement</h2>
         <form className="word-create-form" onSubmit={handleCreateTitle}>
           <label htmlFor="series-title" className="word-input-label">
-            Titre de la série
+            Titre de l’entraînement
           </label>
           <input
             id="series-title"
@@ -154,10 +180,10 @@ export default function NewSeriesPage() {
   return (
     <div className="page">
       <p className="breadcrumb">
-        <Link to="/series">← Mes séries</Link>
+        <Link to="/series">← Entraînements</Link>
       </p>
       <h2>{title}</h2>
-      <p className="page-subtitle">Choisis les mots à ajouter à cette série, dans l’ordre souhaité.</p>
+      <p className="page-subtitle">Choisis les mots à ajouter à cet entraînement, dans l’ordre souhaité.</p>
 
       {error && <p className="form-error">{error}</p>}
 
@@ -242,7 +268,7 @@ export default function NewSeriesPage() {
       </div>
 
       <button type="button" className="btn btn-toggle active" onClick={handleFinish} disabled={submitting}>
-        {submitting ? 'Enregistrement…' : '✅ Valider la série'}
+        {submitting ? 'Enregistrement…' : '✅ Valider l’entraînement'}
       </button>
     </div>
   )

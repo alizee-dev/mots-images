@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { forwardRef, useMemo } from 'react'
 import WordStage from './WordStage'
 import { computeWordBounds } from '../wordGeometry'
 
@@ -16,7 +16,26 @@ const PREVIEW_MARGIN = 8
 const TARGET_WIDTH = 190
 const TARGET_HEIGHT = 150
 
-export default function IllustratedWordPreview({ text, zones = [], theme = 'light', fontFamily = 'OpenDyslexic' }) {
+// targetWidth/targetHeight default to the size every existing call site
+// relies on (the word bank grid, series cards, the test hint) — only a
+// consumer that explicitly passes its own values (see the word bank's print
+// layouts) gets a different size, so nothing already using this component
+// changes.
+// Forwards its ref to the underlying WordStage's Konva Stage (see
+// WordStage's own forwardRef) — used by the word bank's print feature to
+// call stage.toDataURL() and export each card as a flat image for a
+// separate print window, without every other call site needing to care.
+const IllustratedWordPreview = forwardRef(function IllustratedWordPreview(
+  {
+    text,
+    zones = [],
+    theme = 'light',
+    fontFamily = 'OpenDyslexic',
+    targetWidth = TARGET_WIDTH,
+    targetHeight = TARGET_HEIGHT,
+  },
+  ref
+) {
   const letterColors = useMemo(() => {
     const map = {}
     zones.forEach((z) => {
@@ -32,17 +51,23 @@ export default function IllustratedWordPreview({ text, zones = [], theme = 'ligh
   // to shrink the result after the fact.
   const fontSize = useMemo(() => {
     const natural = computeWordBounds(text, zones, fontFamily, BASE_FONT_SIZE)
-    const availableWidth = TARGET_WIDTH - PREVIEW_MARGIN * 2
-    const availableHeight = TARGET_HEIGHT - PREVIEW_MARGIN * 2
+    const availableWidth = targetWidth - PREVIEW_MARGIN * 2
+    const availableHeight = targetHeight - PREVIEW_MARGIN * 2
     if (natural.width <= 0 || natural.height <= 0) return BASE_FONT_SIZE
     const fitWidth = (availableWidth * BASE_FONT_SIZE) / natural.width
     const fitHeight = (availableHeight * BASE_FONT_SIZE) / natural.height
     return Math.max(MIN_FONT_SIZE, Math.min(fitWidth, fitHeight, BASE_FONT_SIZE))
-  }, [text, zones, fontFamily])
+  }, [text, zones, fontFamily, targetWidth, targetHeight])
+
+  const isDefaultSize = targetWidth === TARGET_WIDTH && targetHeight === TARGET_HEIGHT
 
   return (
-    <div className="illustrated-preview-frame">
+    <div
+      className="illustrated-preview-frame"
+      style={isDefaultSize ? undefined : { width: targetWidth, height: targetHeight }}
+    >
       <WordStage
+        ref={ref}
         text={text}
         fontFamily={fontFamily}
         fontSize={fontSize}
@@ -54,4 +79,6 @@ export default function IllustratedWordPreview({ text, zones = [], theme = 'ligh
       />
     </div>
   )
-}
+})
+
+export default IllustratedWordPreview

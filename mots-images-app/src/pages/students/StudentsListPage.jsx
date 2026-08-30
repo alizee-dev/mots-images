@@ -37,13 +37,13 @@ export default function StudentsListPage() {
       <p className="breadcrumb">
         <Link to="/">← Accueil</Link>
       </p>
-      <h2>Mes élèves</h2>
+      <h2>Enfants</h2>
 
       <form className="inline-form" onSubmit={handleSubmit}>
         <input
           type="text"
           className="word-input"
-          placeholder="Nom de l'élève"
+          placeholder="Nom de l'enfant"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -55,7 +55,7 @@ export default function StudentsListPage() {
       {error && <p className="form-error">{error}</p>}
       {loading && <p>Chargement…</p>}
 
-      {!loading && students.length === 0 && <p className="empty-hint">Aucun élève pour l’instant.</p>}
+      {!loading && students.length === 0 && <p className="empty-hint">Aucun enfant pour l’instant.</p>}
 
       <ul className="card-list">
         {students.map((student) => (

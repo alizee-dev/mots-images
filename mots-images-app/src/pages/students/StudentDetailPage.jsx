@@ -72,7 +72,7 @@ export default function StudentDetailPage() {
         setPending(pendingAssignments)
         if (students) {
           const found = students.find((s) => String(s.id) === studentId)
-          setStudentName(found ? found.name : 'Élève')
+          setStudentName(found ? found.name : 'Enfant')
         }
       })
       .catch((err) => setError(err.message))
@@ -120,12 +120,12 @@ export default function StudentDetailPage() {
   return (
     <div className="page">
       <p className="breadcrumb">
-        <Link to="/students">← Mes élèves</Link>
+        <Link to="/students">← Enfants</Link>
       </p>
       <div className="page-header-row">
-        <h2>{studentName || 'Élève'}</h2>
+        <h2>{studentName || 'Enfant'}</h2>
         <Link to="/series/new" className="btn btn-toggle active">
-          ➕ Créer une série
+          ➕ Créer un entraînement
         </Link>
       </div>
 

@@ -346,6 +346,26 @@ export default function SeriesDetailPage() {
         </div>
       )}
 
+      {!fromAssignment && !editing && !assigning && !loading && words.length > 0 && (
+        <div className="practice-entry-row">
+          <Link to={`/series/${seriesId}/practice`} className="btn btn-toggle active">
+            🎮 Commencer l’entraînement
+          </Link>
+          <div className="practice-level-links">
+            <span className="practice-level-links-label">Ou un niveau seul :</span>
+            <Link to={`/series/${seriesId}/practice?level=1`} className="btn btn-chip">
+              Niveau 1
+            </Link>
+            <Link to={`/series/${seriesId}/practice?level=2`} className="btn btn-chip">
+              Niveau 2
+            </Link>
+            <Link to={`/series/${seriesId}/practice?level=3`} className="btn btn-chip">
+              Niveau 3
+            </Link>
+          </div>
+        </div>
+      )}
+
       {error && <p className="form-error">{error}</p>}
       {assignSuccessMessage && <p className="form-success">{assignSuccessMessage}</p>}
       {loading && <p>Chargement…</p>}

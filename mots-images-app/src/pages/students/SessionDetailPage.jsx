@@ -21,7 +21,7 @@ export default function SessionDetailPage() {
   return (
     <div className="page">
       <p className="breadcrumb">
-        <Link to={`/students/${studentId}`}>← Retour à l’élève</Link>
+        <Link to={`/students/${studentId}`}>← Retour à l’enfant</Link>
       </p>
       <h2>{seriesTitle || 'Détail de la session'}</h2>
 
