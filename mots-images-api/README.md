@@ -93,6 +93,7 @@ erDiagram
     jsonb zones
     int teacher_id FK
     boolean in_bank
+    boolean is_common
   }
   WORDS_STUDENTS {
     int word_id FK
@@ -103,6 +104,7 @@ erDiagram
     string title
     int teacher_id FK
     boolean is_active
+    timestamp created_at
   }
   SERIES_WORDS {
     int series_id FK
@@ -170,7 +172,8 @@ Body: `{ text: string, sentence: string }`
 Returns (201): `{ id, text, sentence, zones, teacher_id }`
 
 **GET /words**
-Returns all words belonging to the authenticated teacher.
+Returns all words belonging to the authenticated teacher. By default, only words the teacher owns are returned.
+Query params: `includeCommonWords` (optional, boolean) — when set to `true`, also includes words shared by other teachers (`is_common = true`), in addition to the teacher's own words.
 Returns (200): `[{ id, text, sentence, zones }, ...]`
 
 **POST /words/:wordId/students**
@@ -221,7 +224,7 @@ Returns (404) if no matching series is found.
 
 **GET /series**
 Returns all series belonging to the authenticated teacher, with a word count for each (series with no words yet still appear, with `count: 0`).
-Returns (200): `[{ id, title, count }, ...]`
+Returns (200): `[{ id, title, count, created_at }, ...]`
 
 **PUT /series/:seriesId**
 Updates a series title.
@@ -257,6 +260,11 @@ Returns (409) if all given students are already assigned to this series.
 
 **GET /assignments/:studentId**
 Returns the assignments given to a specific student that don't have a completed test session yet ("pending" assignments) — series title and word count for each.
+Returns (200): `[{ id, series_id, title, count }, ...]`
+Returns (403) if the student doesn't belong to the authenticated teacher.
+
+**GET /assignments/all/:studentId**
+Returns all active assignments given to a specific student, regardless of whether they have a completed test session (unlike GET /assignments/:studentId which only returns pending ones). Only assignments linked to active series (`is_active = true`) are included.
 Returns (200): `[{ id, series_id, title, count }, ...]`
 Returns (403) if the student doesn't belong to the authenticated teacher.
 

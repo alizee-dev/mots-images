@@ -1,4 +1,4 @@
-const { assignStudentsToSeries, assignmentsToDo, assignmentsByTeacher, getStudentsBySeriesId } = require('../models/assignmentsModel')
+const { assignStudentsToSeries, assignmentsToDo, assignmentsByTeacher, getStudentsBySeriesId, allAssignmentsByStudentId } = require('../models/assignmentsModel')
 const {seriesByTeacher} = require('../models/seriesModel')
 const { getStudentsByTeacher } = require('../models/studentModel')
 
@@ -51,4 +51,22 @@ const assignmentsToDoController = async (req, res) => {
     } 
 }
 
-module.exports = {assignStudentsToSeriesController, assignmentsToDoController}
+const getAllAssignmentsByStudentIdController = async (req, res) => {
+    const studentId = req.params.studentId
+    const teacherId = req.teacherId
+    const students = await getStudentsByTeacher(teacherId)
+    const studentIsValid = students.find(student => student.id === Number(studentId))
+    
+    if(studentIsValid) {
+        try {
+        const result = await allAssignmentsByStudentId(studentId)
+        res.status(200).json(result)
+        } catch (error) {
+            res.status(500).json(error.message)
+        }
+    } else {
+        res.status(403).json('Forbidden')
+    } 
+}
+
+module.exports = {assignStudentsToSeriesController, assignmentsToDoController, getAllAssignmentsByStudentIdController}

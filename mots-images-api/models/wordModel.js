@@ -8,14 +8,22 @@ const createWord = async (text, sentence, teacherId) => {
     return result.rows[0]
 }
 
-const getWords = async (teacherId) => {
-    const result = await pool.query(
-        `SELECT id, text, sentence, zones 
-        FROM words
-        WHERE teacher_id = $1 AND in_bank = true`, [teacherId]
-    )
-    //console.log(result.rows);
-    return result.rows     
+const getWords = async (teacherId, includeCommon) => {
+    if (includeCommon) {
+        const result = await pool.query(
+            `SELECT id, text, sentence, zones 
+            FROM words
+            WHERE (teacher_id = $1 OR is_common = true) AND in_bank = true`, [teacherId]
+        )
+        return result.rows
+    } else {
+        const result = await pool.query(
+                `SELECT id, text, sentence, zones 
+                FROM words
+                WHERE teacher_id = $1 AND in_bank = true`, [teacherId]
+            )
+        return result.rows 
+    }      
 }
 
 const wordForStudents = async (wordId, studentsId) => {

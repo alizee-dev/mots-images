@@ -25,6 +25,7 @@ const assignmentsByTeacher = async (teacherId) => {
         return result.rows
 }
 
+//renvoie les series pour lesquelles l'étudiant n'a pas encore fait de test
 const assignmentsToDo = async (studentId) => {
     const result = await pool.query(`
         SELECT a.id, s.id AS series_id, s.title, COUNT(sw.word_id)
@@ -38,6 +39,19 @@ const assignmentsToDo = async (studentId) => {
     return result.rows
 }
 
+const allAssignmentsByStudentId = async (studentId) => {
+    const result = await pool.query(`
+        SELECT a.id, s.id AS series_id, s.title, COUNT(sw.word_id),
+        FROM assignments a
+        JOIN series s ON s.id = a.series_id
+        JOIN series_words sw ON sw.series_id = s.id
+        WHERE a.student_id = $1 AND s.is_active = true
+        GROUP BY a.id, s.id
+        `, [studentId]
+    )
+    return result.rows
+}
+
 const getStudentsBySeriesId = async (seriesId) => {
     const result = await pool.query(`
         SELECT a.student_id 
@@ -47,4 +61,4 @@ const getStudentsBySeriesId = async (seriesId) => {
     return result.rows
 }
 
-module.exports = { assignStudentsToSeries, assignmentsByTeacher, assignmentsToDo, getStudentsBySeriesId }
+module.exports = { assignStudentsToSeries, assignmentsByTeacher, assignmentsToDo, getStudentsBySeriesId, allAssignmentsByStudentId }

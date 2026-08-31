@@ -26,7 +26,7 @@ const linkWordsToSeries = async (seriesId, wordsIds) => {
 
 const seriesByTeacher = async (teacherId) => {
     const result = await pool.query(`
-        SELECT s.id, s.title, COUNT(sw.word_id)
+        SELECT s.id, s.title, s.created_at, COUNT(sw.word_id)
         FROM series s
         LEFT JOIN series_words sw ON sw.series_id = s.id
         WHERE s.teacher_id = $1 AND s.is_active = true

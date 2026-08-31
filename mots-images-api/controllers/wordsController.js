@@ -38,8 +38,9 @@ const createWordController = async (req, res) => {
 const getWordsController = async (req, res) => {
   try {
     const teacher_id = req.teacherId
+    const includeCommonWords = req.query.includeCommonWords === "true"
 
-    const words = await getWords(teacher_id)
+    const words = await getWords(teacher_id, includeCommonWords)
 
     //console.log(words)
     res.status(200).json(words)
