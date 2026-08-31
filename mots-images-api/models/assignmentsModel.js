@@ -41,7 +41,7 @@ const assignmentsToDo = async (studentId) => {
 
 const allAssignmentsByStudentId = async (studentId) => {
     const result = await pool.query(`
-        SELECT a.id, s.id AS series_id, s.title, COUNT(sw.word_id),
+        SELECT a.id, s.id AS series_id, s.title, COUNT(sw.word_id)
         FROM assignments a
         JOIN series s ON s.id = a.series_id
         JOIN series_words sw ON sw.series_id = s.id

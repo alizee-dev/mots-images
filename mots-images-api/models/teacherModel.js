@@ -1,5 +1,13 @@
 const pool = require('../db')
 
+const isAdmin = async (teacherId) => {
+    const result = await pool.query(
+        `SELECT id from teachers
+        WHERE is_admin = true AND id = $1`, [teacherId]
+    )
+    return result.rows.length > 0
+}
+
 const createTeacher = async (name, email, hashedPassword) => {
     const result = await pool.query(
         'INSERT INTO teachers (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email', [name, email, hashedPassword]
@@ -9,7 +17,7 @@ const createTeacher = async (name, email, hashedPassword) => {
 
 const findTeacher = async (email) => {
     const result = await pool.query(
-        'SELECT id, password_hash FROM teachers WHERE email = $1', [email]
+        'SELECT id, password_hash, is_admin FROM teachers WHERE email = $1', [email]
     )
     return result.rows[0]
 }
@@ -31,4 +39,4 @@ const incrementAiGenerationsCount = async(teacherId) => {
     return result.rows[0]
 }
 
-module.exports = {createTeacher, findTeacher, getAiGenerationsCount, incrementAiGenerationsCount}
+module.exports = {createTeacher, findTeacher, getAiGenerationsCount, incrementAiGenerationsCount, isAdmin}

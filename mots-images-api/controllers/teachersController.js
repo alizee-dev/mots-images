@@ -33,7 +33,7 @@ const login = async (req, res) => {
             const token = jwt.sign(
             {teacherId: teacher.id}, process.env.JWT_SECRET, { expiresIn: "24h"}
         )
-            res.status(200).json({message : "Utilisateur connecté", token})
+            res.status(200).json({message : "Utilisateur connecté", token, isAdmin: teacher.is_admin})
         } else {
             res.status(401).json("Email ou mot de passe incorrect")
         }

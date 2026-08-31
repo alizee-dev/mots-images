@@ -4,7 +4,7 @@ const {
   wordForStudents,
   updateWord,
   deleteWordFromBank,
-  getWordById,
+  getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords
 } = require("../models/wordModel")
 
 const {
@@ -167,11 +167,75 @@ const generateIllustrationController = async (req, res) => {
   }
 }
 
+const setPendingStatusController = async (req, res) => {
+  const wordId = req.params.wordId
+  const teacherId = req.teacherId
+  const status = 'pending'
+
+  try {
+    const word = await getWordById(wordId, teacherId)
+    if (!word) {
+      return res.status(403).json("Forbidden")
+    }
+
+    const updatedWord = await setPendingStatus(wordId, teacherId, status)
+    res.status(200).json(updatedWord)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
+const setCommonStatusController = async (req, res) => {
+  const wordId = req.params.wordId
+  const status = 'common'
+
+  try {
+    const validWord = await adminGetWords(wordId)
+    if (!validWord) {
+    return res.status(404).json("Word not found")
+    }
+
+    const updatedWord = await updateWordStatus(wordId, status)
+    res.status(200).json(updatedWord)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+} 
+
+const setPrivateStatusController = async (req, res) => {
+  const wordId = req.params.wordId
+  const status = 'private'
+
+  try {
+    const validWord = await adminGetWords(wordId)
+    if (!validWord) {
+      return res.status(404).json("Word not found")
+    }
+
+    const updatedWord = await updateWordStatus(wordId, status)
+    res.status(200).json(updatedWord)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
+const getPendingWordsController = async (req, res) => {
+  try {
+    const pendingWords = await getPendingWords()
+    res.status(200).json(pendingWords)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
 module.exports = {
   createWordController,
   getWordsController,
   postWordForStudentsController,
   updateWordController,
   deleteWordFromBankController,
-  generateIllustrationController,
+  generateIllustrationController, 
+  setPendingStatusController, 
+  setCommonStatusController, 
+  setPrivateStatusController, getPendingWordsController
 }

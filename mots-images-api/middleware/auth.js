@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken')
+const { isAdmin } = require('../models/teacherModel')
 
 const authenticateTeacher = (req, res, next) => {
     if(req.headers.authorization) {
@@ -19,4 +20,18 @@ const authenticateTeacher = (req, res, next) => {
     
 }
 
-module.exports = {authenticateTeacher}
+const requireAdmin = async (req, res, next) => {
+    try {
+        const teacherId = req.teacherId
+        const admin = await isAdmin(teacherId)
+        if(admin) {
+            next()
+        } else {
+            res.status(403).json('Forbidden')
+        }
+    } catch (error) {
+        res.status(500).json(error.message)
+    }
+}
+
+module.exports = {authenticateTeacher, requireAdmin}

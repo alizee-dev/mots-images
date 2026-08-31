@@ -13,7 +13,7 @@ const getWords = async (teacherId, includeCommon) => {
         const result = await pool.query(
             `SELECT id, text, sentence, zones 
             FROM words
-            WHERE (teacher_id = $1 OR is_common = true) AND in_bank = true`, [teacherId]
+            WHERE (teacher_id = $1 OR status = 'common') AND in_bank = true`, [teacherId]
         )
         return result.rows
     } else {
@@ -73,4 +73,42 @@ const getWordById = async (wordId, teacherId) => {
     return result.rows[0]
 }
 
-module.exports = { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank, getWordById}
+const setPendingStatus = async (wordId, teacherId, status) => {
+    const result = await pool.query(
+        `UPDATE words
+        SET status = $1
+        WHERE id = $2 AND teacher_id = $3
+        RETURNING id, status`, [status, wordId, teacherId]
+    )
+    return result.rows[0]
+}
+
+const adminGetWords = async (wordId) => {
+    const result = await pool.query(
+        `SELECT id, text, sentence, zones, teacher_id, status
+        FROM words
+        WHERE id = $1`, [wordId]
+    )
+    return result.rows[0]
+}
+
+const updateWordStatus = async (wordId, status) => {
+    const result = await pool.query(
+        `UPDATE words
+        SET status = $1
+        WHERE id = $2
+        RETURNING id, status`, [status, wordId]
+    )
+    return result.rows[0]
+}
+
+const getPendingWords = async () => {
+    const result = await pool.query(
+        `SELECT id, text, sentence, zones, teacher_id
+        FROM words
+        WHERE status = 'pending'`
+    )
+    return result.rows
+}
+
+module.exports = { createWord, getWords, wordForStudents, updateWord, deleteWordFromBank, getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords }
