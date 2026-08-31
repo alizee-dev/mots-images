@@ -146,7 +146,7 @@ Returns (400) if the password is shorter than 8 characters.
 **POST /teachers/login**
 Authenticates a teacher and returns a JWT.
 Body: `{ email: string, password: string }`
-Returns (200): `{ message, token }`
+Returns (200): `{ message, token, isAdmin }`
 Returns (401) with a generic message if the email doesn't exist or the password is wrong (no distinction, to avoid leaking which emails are registered).
 
 ### Students
