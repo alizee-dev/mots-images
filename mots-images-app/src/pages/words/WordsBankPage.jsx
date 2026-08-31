@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { createWord, getWords, removeWordFromBank } from '../../api/words'
+import { createWord, getWords, removeWordFromBank, submitWordForCommonBank } from '../../api/words'
 import { addWordsToSeries } from '../../api/series'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
 import PrintWordsButton from '../../components/PrintWordsButton'
@@ -66,6 +66,13 @@ export default function WordsBankPage() {
   // tap adds the word right away and marks it added.
   const [addedIds, setAddedIds] = useState(() => new Set())
   const [addingId, setAddingId] = useState(null)
+
+  // Tracked locally in addition to word.status, in case the list endpoint
+  // doesn't actually echo the freshly-set status back on the very word
+  // just submitted — this guarantees the badge shows immediately either
+  // way, for the rest of this visit.
+  const [proposedIds, setProposedIds] = useState(() => new Set())
+  const [proposingId, setProposingId] = useState(null)
 
   // Words optimistically hidden from the grid while their undo window is
   // still open. The word itself stays in `words` until the delete actually
@@ -193,6 +200,20 @@ export default function WordsBankPage() {
       setError(err.message)
     } finally {
       setAddingId(null)
+    }
+  }
+
+  const handleProposeToCommonBank = async (word) => {
+    if (proposingId || proposedIds.has(word.id)) return
+    setProposingId(word.id)
+    setError(null)
+    try {
+      await submitWordForCommonBank(word.id)
+      setProposedIds((prev) => new Set(prev).add(word.id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setProposingId(null)
     }
   }
 
@@ -344,72 +365,38 @@ export default function WordsBankPage() {
         </button>
       </div>
 
-      {/* Below "Illustrer" rather than up in the header — the natural next
-          step once you've looked for/created a word is picking several of
-          them, not something to reach for before you've even seen the
-          list. */}
+      {/* Filter (which words show) on the left, "select multiple" (an
+          action on them) on the right — same row, right above the grid
+          they both affect, but visually two different kinds of control
+          rather than one long run of near-identical pills. While
+          selecting, this row drops back to just the filter — the
+          selection toolbar itself (further down) is the one place
+          selection-related controls live now. */}
       {!addMode && (
-        <div className="app-header-actions">
-          {selectionMode ? (
-            <>
-              <span className="selection-count">
-                {selectedIds.size} sélectionné{selectedIds.size === 1 ? '' : 's'}
-              </span>
-              <PrintWordsButton words={selectedWords} />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleCreateSeriesFromSelection}
-                disabled={selectedIds.size === 0}
-              >
-                <TargetIcon size={18} />
-                Créer un entraînement
-              </button>
-              {scope === 'mine' && (
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={handleBulkDelete}
-                  disabled={selectedIds.size === 0 || bulkDeleting}
-                >
-                  {bulkDeleting ? (
-                    'Suppression…'
-                  ) : (
-                    <>
-                      <TrashIcon size={16} />
-                      {`Supprimer${selectedIds.size ? ` (${selectedIds.size})` : ''}`}
-                    </>
-                  )}
-                </button>
-              )}
-              <button type="button" className="btn btn-ghost" onClick={toggleSelectionMode}>
-                Annuler
-              </button>
-            </>
-          ) : (
+        <div className="scope-toggle-row">
+          <div className="scope-toggle">
+            <button
+              type="button"
+              className={`btn btn-tab ${scope === 'mine' ? 'active' : ''}`}
+              onClick={() => setScope('mine')}
+            >
+              Mes mots illustrés
+            </button>
+            <button
+              type="button"
+              className={`btn btn-tab ${scope === 'all' ? 'active' : ''}`}
+              onClick={() => setScope('all')}
+            >
+              Banque commune
+            </button>
+          </div>
+          {!selectionMode && (
             <button type="button" className="btn btn-secondary" onClick={toggleSelectionMode}>
               Sélectionner
             </button>
           )}
         </div>
       )}
-
-      <div className="scope-toggle">
-        <button
-          type="button"
-          className={`btn btn-tab ${scope === 'mine' ? 'active' : ''}`}
-          onClick={() => setScope('mine')}
-        >
-          Mes mots illustrés
-        </button>
-        <button
-          type="button"
-          className={`btn btn-tab ${scope === 'all' ? 'active' : ''}`}
-          onClick={() => setScope('all')}
-        >
-          Banque commune
-        </button>
-      </div>
 
       {error && <p className="form-error">{error}</p>}
       {bulkMessage && <p className="form-success">{bulkMessage}</p>}
@@ -439,6 +426,8 @@ export default function WordsBankPage() {
         {pageWords.map((word) => {
           const selected = selectedIds.has(word.id)
           const added = addMode && addedIds.has(word.id)
+          const isPending = word.status === 'pending' || proposedIds.has(word.id)
+          const isCommon = word.status === 'common'
           return (
             <li key={word.id} className={`series-word-item word-bank-item ${selected || added ? 'selected' : ''}`}>
               {addMode ? (
@@ -485,6 +474,23 @@ export default function WordsBankPage() {
                       <TrashIcon size={16} />
                     </button>
                   )}
+                  {/* Only the parent's own, not-yet-common words can be
+                      proposed — a word already shared, or already awaiting
+                      review, just shows where it stands instead. */}
+                  {scope === 'mine' &&
+                    !isCommon &&
+                    (isPending ? (
+                      <span className="word-bank-status-badge">En attente de validation</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-secondary word-bank-propose-btn"
+                        onClick={() => handleProposeToCommonBank(word)}
+                        disabled={proposingId === word.id}
+                      >
+                        {proposingId === word.id ? 'Envoi…' : 'Proposer à la banque commune'}
+                      </button>
+                    ))}
                 </>
               )}
             </li>
@@ -530,6 +536,43 @@ export default function WordsBankPage() {
         </nav>
       )}
 
+      {/* Reserves the room the fixed toolbar below covers, so it never
+          hides the last row of the grid or the pagination. No "Annuler"
+          in the toolbar itself — tapping empty page background already
+          exits selection mode (see handlePageClick above), so it would
+          just be a second way to do the same thing. */}
+      {selectionMode && (
+        <>
+          <div className="selection-toolbar-spacer" aria-hidden="true" />
+          <div className="selection-toolbar no-print" onClick={(e) => e.stopPropagation()}>
+            <span className="selection-count">
+              {selectedIds.size} sélectionné{selectedIds.size === 1 ? '' : 's'}
+            </span>
+            <PrintWordsButton words={selectedWords} className="icon-btn" iconOnly />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleCreateSeriesFromSelection}
+              disabled={selectedIds.size === 0}
+            >
+              <TargetIcon size={18} />
+              Créer un entraînement
+            </button>
+            {scope === 'mine' && (
+              <button
+                type="button"
+                className="icon-btn-danger"
+                onClick={handleBulkDelete}
+                disabled={selectedIds.size === 0 || bulkDeleting}
+                aria-label="Supprimer les mots sélectionnés"
+                title="Supprimer"
+              >
+                <TrashIcon size={18} />
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

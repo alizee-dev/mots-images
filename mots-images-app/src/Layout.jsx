@@ -15,7 +15,7 @@ const TEST_ROUTE_PATTERN = /^\/students\/[^/]+\/assignments\/[^/]+\/test$/
 const PRACTICE_ROUTE_PATTERN = /^\/series\/[^/]+\/practice$/
 
 export default function Layout() {
-  const { logout } = useAuth()
+  const { logout, isAdmin } = useAuth()
   const { studentId, seriesId } = useParams()
   const location = useLocation()
   const [testGuard, setTestGuard] = useState(null)
@@ -54,6 +54,14 @@ export default function Layout() {
               </NavLink>
             </h1>
             <div className="app-header-actions">
+              {/* Only ever rendered for an admin account — not just hidden
+                  by CSS, absent from the DOM entirely when isAdmin is
+                  false. */}
+              {isAdmin && (
+                <NavLink to="/admin" className="btn btn-ghost">
+                  Administration
+                </NavLink>
+              )}
               <button type="button" className="btn btn-secondary" onClick={logout}>
                 <LogoutIcon size={18} />
                 Déconnexion

@@ -6,6 +6,7 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     setAuthToken(token)
@@ -13,6 +14,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     setToken(null)
+    setIsAdmin(false)
   }, [])
 
   useEffect(() => {
@@ -20,13 +22,14 @@ export function AuthProvider({ children }) {
   }, [logout])
 
   const login = useCallback(async (email, password) => {
-    const { token: newToken } = await apiLogin(email, password)
+    const { token: newToken, isAdmin: admin } = await apiLogin(email, password)
     setToken(newToken)
+    setIsAdmin(Boolean(admin))
   }, [])
 
   const value = useMemo(
-    () => ({ token, isAuthenticated: !!token, login, logout }),
-    [token, login, logout]
+    () => ({ token, isAuthenticated: !!token, isAdmin, login, logout }),
+    [token, isAdmin, login, logout]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

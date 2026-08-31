@@ -6,6 +6,7 @@ import Layout from './Layout'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
+import AdminPage from './pages/AdminPage'
 import EvaluationsHubPage from './pages/EvaluationsHubPage'
 import StudentEvaluationsPage from './pages/StudentEvaluationsPage'
 import StudentsListPage from './pages/students/StudentsListPage'
@@ -51,6 +52,7 @@ export default function App() {
               <Route path="/series/:seriesId/practice" element={<PracticeSessionPage />} />
               <Route path="/evaluations" element={<EvaluationsHubPage />} />
               <Route path="/evaluations/:studentId" element={<StudentEvaluationsPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

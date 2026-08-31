@@ -11,14 +11,14 @@ const createWord = async (text, sentence, teacherId) => {
 const getWords = async (teacherId, includeCommon) => {
     if (includeCommon) {
         const result = await pool.query(
-            `SELECT id, text, sentence, zones 
+            `SELECT id, text, sentence, zones, status
             FROM words
             WHERE (teacher_id = $1 OR status = 'common') AND in_bank = true`, [teacherId]
         )
         return result.rows
     } else {
         const result = await pool.query(
-                `SELECT id, text, sentence, zones 
+                `SELECT id, text, sentence, zones, status 
                 FROM words
                 WHERE teacher_id = $1 AND in_bank = true`, [teacherId]
             )

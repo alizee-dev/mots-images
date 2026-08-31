@@ -47,7 +47,7 @@ function preloadImages(words) {
 // toDataURL, see WordCardsStaging) and handed to a self-contained popup
 // document, sidestepping the "hide everything except .print-area" CSS
 // trick that used to leave pages blank or misplaced.
-export default function PrintWordsButton({ words, className = 'btn btn-secondary' }) {
+export default function PrintWordsButton({ words, className = 'btn btn-secondary', iconOnly = false }) {
   const [printDialogOpen, setPrintDialogOpen] = useState(false)
   const [printLayoutChoice, setPrintLayoutChoice] = useState(PRINT_LAYOUTS[0].id)
   const [printing, setPrinting] = useState(false)
@@ -132,9 +132,16 @@ export default function PrintWordsButton({ words, className = 'btn btn-secondary
 
   return (
     <>
-      <button type="button" className={className} onClick={() => setPrintDialogOpen(true)} disabled={words.length === 0}>
+      <button
+        type="button"
+        className={className}
+        onClick={() => setPrintDialogOpen(true)}
+        disabled={words.length === 0}
+        aria-label="Imprimer"
+        title="Imprimer"
+      >
         <PrintIcon size={18} />
-        Imprimer
+        {!iconOnly && 'Imprimer'}
       </button>
 
       {printDialogOpen && (

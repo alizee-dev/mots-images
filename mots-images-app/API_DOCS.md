@@ -175,7 +175,7 @@ Returns (201): `{ id, text, sentence, zones, teacher_id }`
 **GET /words**
 Returns all words belonging to the authenticated teacher. By default, only words the teacher owns are returned.
 Query params: `includeCommonWords` (optional, boolean) — when set to `true`, also includes words shared by other teachers (`status = 'common'`), in addition to the teacher's own words.
-Returns (200): `[{ id, text, sentence, zones }, ...]`
+Returns (200): `[{ id, text, sentence, zones, status }, ...]`
 
 **POST /words/:wordId/students**
 Links a word to one or more students (for words dedicated to specific children rather than kept in the general bank).

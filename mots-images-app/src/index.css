@@ -1308,6 +1308,65 @@ h3 {
   color: var(--color-primary);
 }
 
+/* Same neutral circular treatment as .icon-btn-edit, under a name that
+   doesn't imply "edit" — for any other icon-only action (e.g. Imprimer in
+   the selection toolbar below) that isn't itself a destructive or an
+   edit-specific one. */
+.icon-btn {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  background: var(--color-surface-muted);
+  color: var(--color-primary);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Selection toolbar — a contextual bar of actions on the current
+   selection, fixed to the bottom of the viewport rather than inserted
+   into the page's own flow, so it reads as a distinct, temporary layer
+   instead of just more buttons stacked above the grid. No "Annuler" here
+   on purpose — tapping empty page background already exits selection
+   mode (see WordsBankPage's handlePageClick). */
+.selection-toolbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-top: 2px solid var(--color-border);
+  box-shadow: var(--shadow-panel);
+}
+
+/* Reserves the room the fixed toolbar above would otherwise cover at the
+   bottom of the page (last grid row, pagination). */
+.selection-toolbar-spacer {
+  height: 76px;
+}
+
 .word-chain-edit-wrap {
   position: relative;
 }
@@ -1619,6 +1678,30 @@ h3 {
   }
 }
 
+/* Common-bank submission — a discreet way to propose one of the parent's
+   own words for the shared bank, and to show where that submission
+   stands afterward (see WordsBankPage). */
+.word-bank-propose-btn {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+  justify-content: center;
+}
+
+.word-bank-status-badge {
+  width: 100%;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-accent-contrast);
+  background: color-mix(in srgb, var(--color-accent) 20%, white);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
 .word-bank-card-select {
   display: block;
   position: relative;
@@ -1681,6 +1764,14 @@ h3 {
 .scope-toggle {
   display: flex;
   gap: 8px;
+}
+
+.scope-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 /* Print layout picker (word bank "Imprimer") */

@@ -19,7 +19,6 @@ import { ensureZonesImagesAreCompressed } from '../../imageCompression'
 
 const FONT_FAMILY = 'OpenDyslexic'
 const EDIT_BASE_FONT_SIZE = 130
-const PREVIEW_BASE_FONT_SIZE = 170
 const MIN_FIT_FONT_SIZE = 20
 
 // Fits against the word's full rendered footprint (letters *and* any zone
@@ -101,12 +100,12 @@ export default function WordEditorPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
-  // Local to this page: the only place a card's dark/light background
-  // actually matters is the one you're about to print or hand to a child,
-  // not a global site-wide setting.
-  const [theme, setTheme] = useState('light')
+  // Printing (see PrintWordsButton in the header) has its own export
+  // pipeline and never reads this — light is simply the one card
+  // background WordStage renders with here now that there's no preview
+  // screen left to offer a dark alternative on.
+  const theme = 'light'
 
-  const [mode, setMode] = useState('edit')
   const [activeZoneId, setActiveZoneId] = useState(null)
   const [draftNewZone, setDraftNewZone] = useState(null)
   const [clipboard, setClipboard] = useState(null)
@@ -128,7 +127,6 @@ export default function WordEditorPage() {
   const [zoomedProposal, setZoomedProposal] = useState(null)
 
   const loadedOnce = useRef(false)
-  const previewContainerRef = useRef(null)
   const editContainerRef = useRef(null)
 
   useEffect(() => {
@@ -139,11 +137,9 @@ export default function WordEditorPage() {
     loadedOnce.current = false
     // Navigating from one word's edit page straight to another (e.g. via
     // "Nouveau mot") reuses this same component instance rather than
-    // remounting it, so state left over from the previous word — which
-    // preview/edit mode was active, an open zone editor, the copy/paste
-    // clipboard — has to be reset explicitly here rather than relying on
-    // useState's initial value.
-    setMode('edit')
+    // remounting it, so state left over from the previous word — an open
+    // zone editor, the copy/paste clipboard — has to be reset explicitly
+    // here rather than relying on useState's initial value.
     setActiveZoneId(null)
     setDraftNewZone(null)
     setClipboard(null)
@@ -201,7 +197,6 @@ export default function WordEditorPage() {
   }
 
   const editFontSize = useFitFontSize(wordText, zones, FONT_FAMILY, EDIT_BASE_FONT_SIZE, editContainerRef)
-  const previewFontSize = useFitFontSize(wordText, zones, FONT_FAMILY, PREVIEW_BASE_FONT_SIZE, previewContainerRef)
 
   const letterColors = useMemo(() => {
     const map = {}
@@ -481,18 +476,6 @@ export default function WordEditorPage() {
     setActiveZoneId(null)
   }, [])
 
-  // Same as saving from the illustration editor, but also jumps straight to
-  // the final preview instead of dropping back to the letter row — so
-  // checking the result doesn't require closing the modal and hunting for
-  // the preview button first.
-  const saveZoneAndPreview = useCallback(
-    (illustration, letterColor) => {
-      saveZone(illustration, letterColor)
-      setMode('preview')
-    },
-    [saveZone]
-  )
-
   const zoneLabel = (zone) => {
     const char = Array.from(wordText)[zone.letterIndex] || '?'
     const count = zone.illustration.strokes.length + zone.illustration.stickers.length + zone.illustration.images.length
@@ -562,8 +545,7 @@ export default function WordEditorPage() {
         </div>
       </div>
 
-      {mode === 'edit' && (
-        <>
+      <>
           <p className="edit-instructions no-print">
             {aiFlow === 'selecting' &&
               "✨ Sélectionne une lettre, ou une plage de lettres consécutives, à illustrer avec l'IA (bêta)."}
@@ -686,34 +668,6 @@ export default function WordEditorPage() {
             </div>
           )}
         </>
-      )}
-
-      {mode === 'preview' && (
-        <>
-          <div className="export-bar no-print">
-            <button type="button" className="text-link-btn" onClick={() => setMode('edit')}>
-              ← Retour à l’édition
-            </button>
-            <button
-              type="button"
-              className="btn btn-chip"
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-            >
-              {theme === 'dark' ? '☀️ Clair' : '🌙 Sombre'}
-            </button>
-          </div>
-          <div className="preview-wrap print-area" ref={previewContainerRef}>
-            <WordStage
-              text={wordText}
-              fontSize={previewFontSize}
-              zones={zones}
-              letterColors={letterColors}
-              theme={theme}
-              interactive={false}
-            />
-          </div>
-        </>
-      )}
 
       {activeZone && (
         <IllustrationEditor
@@ -725,7 +679,7 @@ export default function WordEditorPage() {
           clipboard={clipboard}
           onCopy={setClipboard}
           onSave={saveZone}
-          onPreview={saveZoneAndPreview}
+          onPreview={saveZone}
           onDeleteZone={deleteZone}
           onClose={closeEditor}
         />
