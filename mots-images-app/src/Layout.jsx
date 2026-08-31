@@ -2,6 +2,11 @@ import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import { TestGuardContext } from './testGuardContext'
+import ChildIcon from './components/ChildIcon'
+import ImageIcon from './components/ImageIcon'
+import TargetIcon from './components/TargetIcon'
+import EvaluationIcon from './components/EvaluationIcon'
+import LogoutIcon from './components/LogoutIcon'
 
 const TEST_ROUTE_PATTERN = /^\/students\/[^/]+\/assignments\/[^/]+\/test$/
 // Practice is ungraded and purely local (see PracticeSessionPage), so
@@ -50,22 +55,34 @@ export default function Layout() {
             </h1>
             <div className="app-header-actions">
               <button type="button" className="btn btn-secondary" onClick={logout}>
-                🚪 Déconnexion
+                <LogoutIcon size={18} />
+                Déconnexion
               </button>
             </div>
           </div>
+          {/* "Accueil" isn't repeated here — the logo above already links
+              there, so this row only lists the destinations that would
+              otherwise need a second click through Accueil to reach. */}
+          {/* Ordered by how often a parent actually reaches for each one day
+              to day — material and the two activities built on it first,
+              the child's own record last, since that one is consulted more
+              occasionally (a check-in on progress) than acted on. */}
           <nav className="app-nav">
-            <NavLink to="/" end className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              🏠 Accueil
+            <NavLink to="/words" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <ImageIcon size={20} />
+              <span>Banque de mots</span>
+            </NavLink>
+            <NavLink to="/training" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <TargetIcon size={20} />
+              <span>Entraînements</span>
+            </NavLink>
+            <NavLink to="/evaluations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+              <EvaluationIcon size={20} />
+              <span>Évaluations</span>
             </NavLink>
             <NavLink to="/students" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Enfants
-            </NavLink>
-            <NavLink to="/words" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Banque de mots
-            </NavLink>
-            <NavLink to="/series" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-              Entraînements
+              <ChildIcon size={20} />
+              <span>Enfants</span>
             </NavLink>
           </nav>
         </header>

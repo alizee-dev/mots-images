@@ -1,63 +1,47 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import {
-  addWordsToSeries,
-  archiveSeries,
-  getSeries,
-  getSeriesDetail,
-  removeWordFromSeries,
-  updateSeriesTitle,
-  updateSeriesWordsOrder,
-} from '../../api/series'
-import { getMyStudents, getStudentTestSessions } from '../../api/students'
-import { assignSeriesToStudents, getPendingAssignments } from '../../api/assignments'
-import { createWord, updateWord } from '../../api/words'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { getSeries, getSeriesDetail, removeWordFromSeries, updateSeriesTitle } from '../../api/series'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
+import PrintWordsButton from '../../components/PrintWordsButton'
 import TrashIcon from '../../components/TrashIcon'
 import EditIcon from '../../components/EditIcon'
+import TargetIcon from '../../components/TargetIcon'
+import StarIcon from '../../components/StarIcon'
+import PlusIcon from '../../components/PlusIcon'
+import EvaluationIcon from '../../components/EvaluationIcon'
 
 export default function SeriesDetailPage() {
   const { seriesId } = useParams()
   const location = useLocation()
-  const navigate = useNavigate()
   const fromAssignment = location.state?.fromAssignment || null
+  const studentId = location.state?.studentId || null
 
   const [title, setTitle] = useState(location.state?.title || null)
   const [words, setWords] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   // Passed as query params rather than router `state` when linking to a
   // word's editor — plain URL data is unambiguous and survives a refresh,
   // where state-based passing was proving unreliable to pin down.
   const fromSeriesQuery = `?fromSeriesId=${encodeURIComponent(seriesId)}&fromSeriesTitle=${encodeURIComponent(title || '')}`
+  // Adding words is a whole screen of its own now (the word bank, in "add
+  // to this entraînement" mode — see WordsBankPage), not an inline panel
+  // here, so it can offer the exact same browsing/search/illustrate
+  // experience as the bank itself rather than a second, smaller version of
+  // it. studentId is carried along only for that screen's own breadcrumb.
+  const addWordsUrl = `/words?forSeries=${encodeURIComponent(seriesId)}&seriesTitle=${encodeURIComponent(title || '')}${
+    studentId ? `&studentId=${encodeURIComponent(studentId)}` : ''
+  }`
 
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [titleSaving, setTitleSaving] = useState(false)
-  const [archiving, setArchiving] = useState(false)
 
-  const [assigning, setAssigning] = useState(false)
-  const [students, setStudents] = useState([])
-  const [studentsLoading, setStudentsLoading] = useState(false)
-  const [selectedStudentIds, setSelectedStudentIds] = useState([])
-  // Students who already have this series, whether pending or already
-  // completed — the backend rejects re-assigning them (409, unique per
-  // series+student), so they're shown greyed out instead of only being
-  // caught after a failed submit.
-  const [alreadyAssignedIds, setAlreadyAssignedIds] = useState(() => new Set())
-  const [error, setError] = useState(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [assignSuccessMessage, setAssignSuccessMessage] = useState(null)
-
-  // A series is either being assigned or being edited, never both — editing
-  // covers the title, the word list (add/remove/reorder), and each word's
-  // phrase, all persisted immediately as they change, no separate "save".
-  const [editing, setEditing] = useState(false)
-  const [addWordFormOpen, setAddWordFormOpen] = useState(false)
-  const [reordering, setReordering] = useState(false)
+  // Only controls whether each thumbnail shows its remove icon — adding is
+  // its own screen now (see addWordsUrl above).
+  const [removingWords, setRemovingWords] = useState(false)
   const [removingWordId, setRemovingWordId] = useState(null)
-  const [quickWordText, setQuickWordText] = useState('')
-  const [quickWordSubmitting, setQuickWordSubmitting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -75,7 +59,7 @@ export default function SeriesDetailPage() {
         if (!resolvedTitle) {
           const all = await getSeries()
           const found = all.find((s) => String(s.id) === seriesId)
-          resolvedTitle = found ? found.title : 'Série'
+          resolvedTitle = found ? found.title : 'Entraînement'
         }
         if (!cancelled) setTitle(resolvedTitle)
       } catch (err) {
@@ -114,107 +98,8 @@ export default function SeriesDetailPage() {
     }
   }
 
-  const handleArchive = async () => {
-    if (!window.confirm(`Supprimer définitivement la série « ${title || 'cette série'} » ? Cette action est irréversible.`)) {
-      return
-    }
-    setArchiving(true)
-    setError(null)
-    try {
-      await archiveSeries(seriesId)
-      navigate('/series')
-    } catch (err) {
-      setError(err.message)
-      setArchiving(false)
-    }
-  }
-
-  const openAssign = () => {
-    setAssigning(true)
-    setAssignSuccessMessage(null)
-    setStudentsLoading(true)
-    getMyStudents()
-      .then(async (list) => {
-        setStudents(list)
-        // No dedicated "who already has this series" endpoint exists, so this
-        // is inferred from what's already available: a pending assignment for
-        // this series, or a completed test session for it — either one means
-        // the backend's unique (series, student) constraint would reject a
-        // new assignment.
-        const flags = await Promise.all(
-          list.map((student) =>
-            Promise.all([getPendingAssignments(student.id), getStudentTestSessions(student.id)])
-              .then(([pending, sessions]) => {
-                const has =
-                  pending.some((a) => String(a.series_id) === String(seriesId)) ||
-                  sessions.some((s) => String(s.series_id) === String(seriesId))
-                return has ? student.id : null
-              })
-              .catch(() => null)
-          )
-        )
-        setAlreadyAssignedIds(new Set(flags.filter((id) => id !== null)))
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setStudentsLoading(false))
-  }
-
-  const toggleStudent = (id) => {
-    if (alreadyAssignedIds.has(id)) return
-    setSelectedStudentIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]))
-  }
-
-  const handleAssign = async () => {
-    if (selectedStudentIds.length === 0) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      const count = selectedStudentIds.length
-      await assignSeriesToStudents(seriesId, selectedStudentIds)
-      // Once it's done there's nothing left to do in this panel — closing it
-      // automatically leaves just the series showing, instead of the picker
-      // sitting there with everyone now greyed out.
-      setAssigning(false)
-      setSelectedStudentIds([])
-      setAssignSuccessMessage(`Série assignée à ${count} élève${count === 1 ? '' : 's'} ✓`)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const toggleEditing = () => {
-    setEditing((v) => !v)
-    setEditingTitle(false)
-    setAddWordFormOpen(false)
-    setQuickWordText('')
-  }
-
-  const moveWord = async (index, direction) => {
-    const target = index + direction
-    if (target < 0 || target >= words.length) return
-    const previous = words
-    const next = [...words]
-    ;[next[index], next[target]] = [next[target], next[index]]
-    setWords(next)
-    setReordering(true)
-    setError(null)
-    try {
-      await updateSeriesWordsOrder(
-        seriesId,
-        next.map((w, i) => ({ wordId: w.id, newOrder: i }))
-      )
-    } catch (err) {
-      setWords(previous)
-      setError(err.message)
-    } finally {
-      setReordering(false)
-    }
-  }
-
   const handleRemoveWord = async (word) => {
-    if (!window.confirm(`Retirer « ${word.text} » de cette série ?`)) return
+    if (!window.confirm(`Retirer « ${word.text} » de cet entraînement ?`)) return
     setRemovingWordId(word.id)
     setError(null)
     try {
@@ -224,39 +109,6 @@ export default function SeriesDetailPage() {
       setError(err.message)
     } finally {
       setRemovingWordId(null)
-    }
-  }
-
-  const updateWordSentenceDraft = (wordId, sentence) => {
-    setWords((prev) => prev.map((w) => (w.id === wordId ? { ...w, sentence } : w)))
-  }
-
-  const saveWordSentence = async (word) => {
-    try {
-      await updateWord(word.id, word.sentence || '', word.zones || [])
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  // Adds a brand-new, plain word (no illustration) straight into this
-  // series — for illustrating it afterward, the word link in the edit list
-  // below (or its card at the bottom) opens the usual word editor.
-  const handleQuickAddWord = async (e) => {
-    e.preventDefault()
-    const text = quickWordText.trim()
-    if (!text) return
-    setQuickWordSubmitting(true)
-    setError(null)
-    try {
-      const word = await createWord(text, '')
-      await addWordsToSeries(seriesId, [word.id])
-      setWords((prev) => [...prev, { ...word, order: prev.length }])
-      setQuickWordText('')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setQuickWordSubmitting(false)
     }
   }
 
@@ -270,13 +122,13 @@ export default function SeriesDetailPage() {
         </p>
       ) : (
         <p className="breadcrumb">
-          <Link to="/series">← Mes séries</Link>
+          <Link to={studentId ? `/training/${studentId}` : '/training'}>← Entraînements</Link>
         </p>
       )}
       {/* Reached from a student's "À faire" list: this is a to-do to work
-          through, not a series to manage — so only the title and starting
-          the test show. The title-edit / archive / assign / edit tools stay
-          reserved for the "Mes séries" management view. */}
+          through, not an entraînement to manage — so only the title and
+          starting the test show. The title-edit / add-words tools stay
+          reserved for the "Entraînements" management view. */}
       {editingTitle && !fromAssignment ? (
         <form className="inline-form" onSubmit={handleSaveTitle}>
           <input
@@ -297,8 +149,8 @@ export default function SeriesDetailPage() {
       ) : (
         <div className="page-header-row">
           <div className="series-title-row">
-            <h2>{title || 'Série'}</h2>
-            {editing && !fromAssignment && (
+            <h2>{title || 'Entraînement'}</h2>
+            {!fromAssignment && (
               <button
                 type="button"
                 className="icon-btn-edit"
@@ -310,251 +162,96 @@ export default function SeriesDetailPage() {
               </button>
             )}
           </div>
-          <div className="app-header-actions">
-            {fromAssignment && (
+          {fromAssignment && (
+            <div className="app-header-actions">
               <Link
                 to={`/students/${fromAssignment.studentId}/assignments/${fromAssignment.assignmentId}/test`}
                 state={{ studentName: fromAssignment.studentName }}
                 className="btn btn-toggle active"
               >
-                🎯 Démarrer le test
+                <EvaluationIcon size={18} />
+                Démarrer le test
               </Link>
-            )}
-            {!fromAssignment && !assigning && !editing && (
-              <button type="button" className="btn btn-toggle active" onClick={openAssign}>
-                🧒 Assigner à des élèves
-              </button>
-            )}
-            {!fromAssignment && !assigning && (
-              <button type="button" className="btn btn-secondary" onClick={toggleEditing}>
-                {editing ? '✔️ Terminer' : '✏️ Éditer'}
-              </button>
-            )}
-            {!fromAssignment && (
-              <button
-                type="button"
-                className="icon-btn-danger"
-                onClick={handleArchive}
-                disabled={archiving}
-                aria-label={`Supprimer définitivement la série "${title || ''}"`}
-                title="Supprimer définitivement"
-              >
-                <TrashIcon />
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
-      {!fromAssignment && !editing && !assigning && !loading && words.length > 0 && (
+      {!fromAssignment && !loading && words.length > 0 && (
         <div className="practice-entry-row">
-          <Link to={`/series/${seriesId}/practice`} className="btn btn-toggle active">
-            🎮 Commencer l’entraînement
+          <Link to={`/series/${seriesId}/practice`} className="btn btn-toggle active practice-start-btn">
+            <TargetIcon size={18} />
+            Commencer l’entraînement
           </Link>
           <div className="practice-level-links">
-            <span className="practice-level-links-label">Ou un niveau seul :</span>
-            <Link to={`/series/${seriesId}/practice?level=1`} className="btn btn-chip">
-              Niveau 1
+            <span className="practice-level-links-label">Ou</span>
+            <Link to={`/series/${seriesId}/practice?level=1`} className="practice-level-chip">
+              <StarIcon size={16} />1
             </Link>
-            <Link to={`/series/${seriesId}/practice?level=2`} className="btn btn-chip">
-              Niveau 2
+            <Link to={`/series/${seriesId}/practice?level=2`} className="practice-level-chip">
+              <StarIcon size={16} />2
             </Link>
-            <Link to={`/series/${seriesId}/practice?level=3`} className="btn btn-chip">
-              Niveau 3
+            <Link to={`/series/${seriesId}/practice?level=3`} className="practice-level-chip">
+              <StarIcon size={16} />3
             </Link>
           </div>
         </div>
       )}
 
       {error && <p className="form-error">{error}</p>}
-      {assignSuccessMessage && <p className="form-success">{assignSuccessMessage}</p>}
       {loading && <p>Chargement…</p>}
 
-      {!fromAssignment && assigning && (
-        <div className="assign-panel">
-          <h3>Choisir les élèves</h3>
-          {studentsLoading && <p>Chargement…</p>}
-          {!studentsLoading && students.length === 0 && (
-            <p className="empty-hint">Aucun élève enregistré pour l’instant.</p>
-          )}
-          <ul className="picker-list">
-            {students.map((student) => {
-              const already = alreadyAssignedIds.has(student.id)
-              return (
-                <li key={student.id}>
-                  <label className={`checkbox-row ${already ? 'checkbox-row-disabled' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={already || selectedStudentIds.includes(student.id)}
-                      disabled={already}
-                      onChange={() => toggleStudent(student.id)}
-                    />
-                    {student.name}
-                    {already && <span className="checkbox-row-note">déjà assigné</span>}
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
-
-          <div className="app-header-actions">
-            <button
-              type="button"
-              className="btn btn-toggle active"
-              onClick={handleAssign}
-              disabled={submitting || selectedStudentIds.length === 0}
-            >
-              {submitting ? 'Assignation…' : 'Valider'}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={() => setAssigning(false)}>
-              Fermer
-            </button>
-          </div>
-        </div>
+      {!loading && words.length === 0 && !fromAssignment && (
+        <p className="empty-hint">Cet entraînement ne contient aucun mot pour l’instant.</p>
       )}
 
-      {!loading && !editing && words.length > 0 && (
+      {!loading && (words.length > 0 || !fromAssignment) && (
         <>
-          <h3 className="page-subtitle">Mots</h3>
-          <p className="word-chain">
-            {words.map((word, i) => (
-              <span key={word.id}>
-                <Link to={`/words/${word.id}${fromSeriesQuery}`} className="plain-word-link">
-                  {word.text}
+          <div className="page-header-row">
+            <h3>Mots</h3>
+            {!fromAssignment && (
+              <div className="app-header-actions">
+                <PrintWordsButton words={words} />
+                <Link to={addWordsUrl} className="btn btn-secondary">
+                  <PlusIcon size={18} />
+                  Ajouter des mots
                 </Link>
-                {i < words.length - 1 && <span className="word-chain-sep"> • </span>}
-              </span>
-            ))}
-          </p>
-
-          <h3 className="page-subtitle">Phrases</h3>
-          <ol className="phrase-list">
-            {words.map((word) => (
-              <li key={word.id} className="font-dys">
-                {word.sentence || <em>— pas de phrase —</em>}
-              </li>
-            ))}
-          </ol>
-        </>
-      )}
-
-      {!loading && !editing && words.length === 0 && !fromAssignment && (
-        <p className="empty-hint">Cette série ne contient aucun mot pour l’instant.</p>
-      )}
-
-      {!loading && editing && !fromAssignment && (
-        <>
-          <div className="word-chain-edit-wrap">
-            <p className="word-chain">
-              {words.length === 0 ? (
-                <span className="word-chain-empty">Aucun mot pour l’instant — utilise le stylet pour en ajouter.</span>
-              ) : (
-                words.map((word, i) => (
-                  <span key={word.id}>
-                    <Link to={`/words/${word.id}${fromSeriesQuery}`} className="plain-word-link">
-                      {word.text}
-                    </Link>
-                    {i < words.length - 1 && <span className="word-chain-sep"> • </span>}
-                  </span>
-                ))
-              )}
-            </p>
-            <button
-              type="button"
-              className="icon-btn-edit word-chain-edit-btn"
-              onClick={() => setAddWordFormOpen((v) => !v)}
-              aria-label="Ajouter des mots"
-              title="Ajouter des mots"
-            >
-              <EditIcon />
-            </button>
+                <button
+                  type="button"
+                  className="icon-btn-edit"
+                  onClick={() => setRemovingWords((v) => !v)}
+                  aria-label={removingWords ? 'Terminer' : 'Retirer des mots'}
+                  title={removingWords ? 'Terminer' : 'Retirer des mots'}
+                >
+                  <EditIcon />
+                </button>
+              </div>
+            )}
           </div>
-
-          {addWordFormOpen && (
-            <form className="inline-form" onSubmit={handleQuickAddWord}>
-              <input
-                type="text"
-                className="word-input"
-                placeholder="Nouveau mot (ex : poisson)"
-                value={quickWordText}
-                onChange={(e) => setQuickWordText(e.target.value)}
-                autoFocus
-              />
-              <button type="submit" className="btn btn-secondary" disabled={quickWordSubmitting}>
-                {quickWordSubmitting ? 'Ajout…' : '➕ Ajouter'}
-              </button>
-            </form>
-          )}
 
           {words.length > 0 && (
-            <ul className="series-edit-list">
-              {words.map((word, i) => (
-                <li key={word.id} className="series-edit-row">
-                  <span className="series-edit-order">
-                    <button
-                      type="button"
-                      className="btn btn-chip"
-                      onClick={() => moveWord(i, -1)}
-                      disabled={i === 0 || reordering}
-                      aria-label={`Monter "${word.text}"`}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-chip"
-                      onClick={() => moveWord(i, 1)}
-                      disabled={i === words.length - 1 || reordering}
-                      aria-label={`Descendre "${word.text}"`}
-                    >
-                      ↓
-                    </button>
-                  </span>
-                  <Link to={`/words/${word.id}${fromSeriesQuery}`} className="series-edit-word-link">
-                    {word.text}
+            <ul className="card-list series-word-list">
+              {words.map((word) => (
+                <li key={word.id} className="series-word-item">
+                  <Link to={`/words/${word.id}${fromSeriesQuery}`} className="word-bank-card-link">
+                    <IllustratedWordPreview text={word.text} zones={word.zones} />
                   </Link>
-                  <input
-                    type="text"
-                    className="series-edit-sentence-input"
-                    placeholder="ex : La ___ est posée sur la table."
-                    value={word.sentence || ''}
-                    onChange={(e) => updateWordSentenceDraft(word.id, e.target.value)}
-                    onBlur={() => saveWordSentence(word)}
-                  />
-                  <button
-                    type="button"
-                    className="icon-btn-danger"
-                    onClick={() => handleRemoveWord(word)}
-                    disabled={removingWordId === word.id}
-                    aria-label={`Retirer "${word.text}" de la série`}
-                    title="Retirer de la série"
-                  >
-                    <TrashIcon size={16} />
-                  </button>
+                  {removingWords && (
+                    <button
+                      type="button"
+                      className="icon-btn-danger word-bank-delete-btn"
+                      onClick={() => handleRemoveWord(word)}
+                      disabled={removingWordId === word.id}
+                      aria-label={`Retirer "${word.text}" de cet entraînement`}
+                      title="Retirer de l’entraînement"
+                    >
+                      <TrashIcon size={16} />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
-        </>
-      )}
-
-      {!loading && words.length > 0 && (
-        <>
-          <div className="page-header-row">
-            <h3 className="page-subtitle">Cartes à imprimer</h3>
-            <button type="button" className="btn btn-secondary no-print" onClick={() => window.print()}>
-              🖨️ Imprimer
-            </button>
-          </div>
-          <ul className="card-list series-word-list print-area">
-            {words.map((word) => (
-              <li key={word.id} className="series-word-item">
-                <Link to={`/words/${word.id}${fromSeriesQuery}`} className="word-bank-card-link">
-                  <IllustratedWordPreview text={word.text} zones={word.zones} />
-                </Link>
-              </li>
-            ))}
-          </ul>
         </>
       )}
     </div>

@@ -77,6 +77,7 @@ erDiagram
     string email
     string password_hash
     int ai_generations_count
+    boolean is_admin
   }
   STUDENTS {
     int id PK
@@ -93,7 +94,7 @@ erDiagram
     jsonb zones
     int teacher_id FK
     boolean in_bank
-    boolean is_common
+    string status
   }
   WORDS_STUDENTS {
     int word_id FK
@@ -104,6 +105,7 @@ erDiagram
     string title
     int teacher_id FK
     boolean is_active
+    timestamp created_at
   }
   SERIES_WORDS {
     int series_id FK
@@ -172,7 +174,7 @@ Returns (201): `{ id, text, sentence, zones, teacher_id }`
 
 **GET /words**
 Returns all words belonging to the authenticated teacher. By default, only words the teacher owns are returned.
-Query params: `includeCommonWords` (optional, boolean) — when set to `true`, also includes words shared by other teachers (`is_common = true`), in addition to the teacher's own words.
+Query params: `includeCommonWords` (optional, boolean) — when set to `true`, also includes words shared by other teachers (`status = 'common'`), in addition to the teacher's own words.
 Returns (200): `[{ id, text, sentence, zones }, ...]`
 
 **POST /words/:wordId/students**
@@ -203,6 +205,38 @@ Returns (403) if the word doesn't belong to the authenticated teacher.
 Returns (429) if the teacher has reached their generation quota.
 Returns (500) if the OpenAI API call (text or image step) fails.
 
+##Word status system
+
+Each word has a `status` column with three possible values:
+- `private` (default): visible only to its owner.
+- `pending`: submitted by its owner for inclusion in the common word bank, awaiting admin review.
+- `common`: approved by an admin, visible to all teachers via `GET /words?includeCommonWords=true`. The word's `teacher_id` never changes upon approval — it always reflects the original creator, who retains full ownership and visibility of the word regardless of its status.
+
+**PUT /words/:wordId/status/pending**
+Submits a word for admission into the common word bank. Sets the word's `status` to `pending`, awaiting admin review. Only the word's owner can submit it.
+No body required.
+Returns (200): `{ id, status }`
+Returns (403) if the word doesn't belong to the authenticated teacher.
+
+**PUT /words/:wordId/status/common** *(admin only)*
+Approves a pending word, making it visible to all teachers via the common word bank. Sets `status` to `common`. Does not require ownership of the word — any word can be approved by an admin.
+No body required.
+Returns (200): `{ id, status }`
+Returns (403) if the authenticated teacher is not an admin.
+Returns (404) if no matching word is found.
+
+**PUT /words/:wordId/status/private**
+*(admin only)* Rejects a pending word, reverting it back to private status (visible only to its original owner). Sets `status` to `private`.
+No body required.
+Returns (200): `{ id, status }`
+Returns (403) if the authenticated teacher is not an admin.
+Returns (404) if no matching word is found.
+
+**GET /words/status/pending** *(admin only)*
+Returns all words currently awaiting admin review, regardless of which teacher submitted them.
+Returns (200): `[{ id, text, sentence, zones, teacher_id }, ...]`
+Returns (403) if the authenticated teacher is not an admin.
+
 ### Series
 
 **POST /series**
@@ -223,7 +257,7 @@ Returns (404) if no matching series is found.
 
 **GET /series**
 Returns all series belonging to the authenticated teacher, with a word count for each (series with no words yet still appear, with `count: 0`).
-Returns (200): `[{ id, title, count }, ...]`
+Returns (200): `[{ id, title, count, created_at }, ...]`
 
 **PUT /series/:seriesId**
 Updates a series title.
@@ -259,6 +293,11 @@ Returns (409) if all given students are already assigned to this series.
 
 **GET /assignments/:studentId**
 Returns the assignments given to a specific student that don't have a completed test session yet ("pending" assignments) — series title and word count for each.
+Returns (200): `[{ id, series_id, title, count }, ...]`
+Returns (403) if the student doesn't belong to the authenticated teacher.
+
+**GET /assignments/all/:studentId**
+Returns all active assignments given to a specific student, regardless of whether they have a completed test session (unlike GET /assignments/:studentId which only returns pending ones). Only assignments linked to active series (`is_active = true`) are included.
 Returns (200): `[{ id, series_id, title, count }, ...]`
 Returns (403) if the student doesn't belong to the authenticated teacher.
 

@@ -4,6 +4,7 @@ import { getSeriesDetail } from '../../api/series'
 import PracticeLevel1 from '../../components/practice/PracticeLevel1'
 import PracticeLevel2 from '../../components/practice/PracticeLevel2'
 import PracticeLevel3 from '../../components/practice/PracticeLevel3'
+import PracticeLevelTransition from '../../components/practice/PracticeLevelTransition'
 import PracticeMascot from '../../components/practice/PracticeMascot'
 import PracticeProgressBar from '../../components/practice/PracticeProgressBar'
 import PracticeRewardScreen from '../../components/practice/PracticeRewardScreen'
@@ -54,6 +55,10 @@ export default function PracticeSessionPage() {
   const [feedback, setFeedback] = useState(null) // null | 'correct' | 'incorrect' | 'final'
   const [runResults, setRunResults] = useState([])
   const [finished, setFinished] = useState(false)
+  // null outside a transition. Set only when a level just finished and
+  // another one follows in this run (see advance) — holds just enough to
+  // render PracticeLevelTransition's own mini stars for that one level.
+  const [levelTransition, setLevelTransition] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -98,18 +103,33 @@ export default function PracticeSessionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWord?.id, needsAudio])
 
-  const advance = () => {
+  // `resultsSoFar` is passed explicitly rather than read from the
+  // `runResults` state closure — when this runs from inside a setTimeout
+  // scheduled in the same handleAnswered call that just appended this
+  // word's own result, that append hasn't necessarily been flushed into
+  // the closure this function was defined with yet.
+  const advance = (resultsSoFar) => {
     setAttemptNumber(1)
     if (wordPos + 1 < (words?.length || 0)) {
       setWordPos((p) => p + 1)
       return
     }
     if (levelPos + 1 < levels.length) {
-      setLevelPos((p) => p + 1)
-      setWordPos(0)
+      // A level just finished and another one follows — a short
+      // recognition beat (mascotte + that level's own stars) before
+      // continuing, rather than sliding straight into the next level's
+      // first word with nothing marking the change.
+      const levelResults = resultsSoFar.filter((r) => r.level === currentLevel)
+      setLevelTransition({ level: currentLevel, correct: levelResults.filter((r) => r.correct).length, total: levelResults.length })
       return
     }
     setFinished(true)
+  }
+
+  const goToNextLevel = () => {
+    setLevelTransition(null)
+    setLevelPos((p) => p + 1)
+    setWordPos(0)
   }
 
   const handleAnswered = (isCorrect) => {
@@ -126,7 +146,7 @@ export default function PracticeSessionPage() {
         setTimeout(() => {
           setFeedback(null)
           setMascotState('neutral')
-          advance()
+          advance(runResults)
         }, CORRECT_FEEDBACK_DELAY_MS)
       } else {
         setMascotState('encouraging')
@@ -135,24 +155,25 @@ export default function PracticeSessionPage() {
         setTimeout(() => {
           setFeedback(null)
           setMascotState('neutral')
-          advance()
+          advance(runResults)
         }, FINAL_REVEAL_DELAY_MS)
       }
       return
     }
 
-    setRunResults((prev) => [...prev, { level: currentLevel, wordId: currentWord.id, correct: isCorrect }])
-
     if (isCorrect) {
+      const updatedResults = [...runResults, { level: currentLevel, wordId: currentWord.id, correct: true }]
+      setRunResults(updatedResults)
       setMascotState('happy')
       playCorrectSound()
       setFeedback('correct')
       setTimeout(() => {
         setFeedback(null)
         setMascotState('neutral')
-        advance()
+        advance(updatedResults)
       }, CORRECT_FEEDBACK_DELAY_MS)
     } else {
+      setRunResults((prev) => [...prev, { level: currentLevel, wordId: currentWord.id, correct: false }])
       // No timer here: the mascotte's gentle bubble and the retry stay up
       // until the child actually tries again, on their own time.
       setMascotState('encouraging')
@@ -185,6 +206,20 @@ export default function PracticeSessionPage() {
     )
   }
 
+  if (levelTransition) {
+    return (
+      <div className="page test-scope practice-scope">
+        <PracticeLevelTransition
+          level={levelTransition.level}
+          correct={levelTransition.correct}
+          total={levelTransition.total}
+          nextLevel={levels[levelPos + 1]}
+          onContinue={goToNextLevel}
+        />
+      </div>
+    )
+  }
+
   // Only the two brief, timed windows (a correct answer, or the final
   // reveal after a wrong retry) freeze the exercise — the guided retry
   // itself ('incorrect') stays fully interactive.
@@ -192,8 +227,12 @@ export default function PracticeSessionPage() {
   const bubbleMessage =
     feedback === 'correct'
       ? 'Bravo !'
-      : feedback === 'incorrect' && currentWord
-        ? `Le mot exact est ${currentWord.text}, essaie encore !`
+      : feedback === 'incorrect'
+        ? // Kept short on purpose — the word itself is no longer spelled out
+          // here at all; it's shown as the illustrated image instead (see
+          // each level's own `retry` rendering), a stronger memorization aid
+          // than reading it as plain text in the bubble.
+          'Essaie encore !'
         : feedback === 'final' && currentWord
           ? `Le mot exact était « ${currentWord.text} »`
           : needsAudio

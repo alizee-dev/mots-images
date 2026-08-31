@@ -4,6 +4,8 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { getMyStudents, getStudentTestSessions } from '../../api/students'
 import { getPendingAssignments } from '../../api/assignments'
 import { getTestSessionWords } from '../../api/testSessions'
+import EvaluationIcon from '../../components/EvaluationIcon'
+import TargetIcon from '../../components/TargetIcon'
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -124,8 +126,11 @@ export default function StudentDetailPage() {
       </p>
       <div className="page-header-row">
         <h2>{studentName || 'Enfant'}</h2>
-        <Link to="/series/new" className="btn btn-toggle active">
-          ➕ Créer un entraînement
+        {/* Creating an entraînement is the Training section's job now (see
+            /training) — this just points there, rather than duplicating
+            that action here too. */}
+        <Link to={`/training/${studentId}`} className="btn btn-secondary">
+          Voir ses entraînements →
         </Link>
       </div>
 
@@ -148,7 +153,10 @@ export default function StudentDetailPage() {
                       }}
                       className="card-list-item card-list-item-row"
                     >
-                      <span>📌 {assignment.title}</span>
+                      <span className="card-list-item-title">
+                        <EvaluationIcon size={16} />
+                        {assignment.title}
+                      </span>
                       <span className="card-list-meta">{assignment.count} mot(s)</span>
                     </Link>
                   </li>
@@ -223,7 +231,10 @@ export default function StudentDetailPage() {
                       state={{ seriesTitle: session.title, takenAt: session.taken_at }}
                       className="card-list-item card-list-item-row"
                     >
-                      <span>📚 {session.title}</span>
+                      <span className="card-list-item-title">
+                        <TargetIcon size={16} />
+                        {session.title}
+                      </span>
                       <span className="card-list-meta">{formatDate(session.taken_at)}</span>
                       <span className="card-list-score">{session.total_score} pts</span>
                     </Link>

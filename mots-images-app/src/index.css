@@ -27,6 +27,17 @@
   --overlay-backdrop: rgba(30, 24, 18, 0.55);
   --font-system: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
   --font-heading: Rockwell, "Roboto Slab", Cambria, Georgia, serif;
+
+  /* Spacing scale — six steps, multiples of 4px. New layout code should
+     reach for one of these instead of a one-off px value; existing rules
+     are being migrated onto it screen by screen rather than all at once. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
 }
 
 * {
@@ -51,6 +62,23 @@ h1,
 h2,
 h3 {
   font-family: var(--font-heading);
+}
+
+/* Title hierarchy — h2 is the one page title on every screen (Tableau de
+   bord, Ma banque de mots, Entraînements…), h3 a section heading within a
+   page (e.g. "Mots" on the entraînement detail screen). Neither had an
+   explicit size before this, so every page's title landed on the browser
+   default by accident. A scoped override (e.g. .editor-header h2) still
+   wins over this via specificity where a screen genuinely needs a
+   different size. */
+h2 {
+  font-size: clamp(1.3rem, 4vw, 1.5rem);
+  margin: 0;
+}
+
+h3 {
+  font-size: clamp(1rem, 3vw, 1.1rem);
+  margin: 0;
 }
 
 /* The dyslexia-friendly face is mandatory — not a toggle — on every piece
@@ -97,26 +125,44 @@ h3 {
   text-decoration: none;
 }
 
+/* Main navigation — one icon + label per destination, replacing the plain
+   text links this used to be. Reaching "Accueil" stays the logo's job
+   (top-left, already a link) rather than a fourth item here, so this row
+   only lists destinations that aren't already reachable another way. */
 .app-nav {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .nav-link {
-  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
   border-radius: 999px;
   font-weight: 700;
+  font-size: 0.95rem;
   color: var(--color-text);
   text-decoration: none;
+  border: 2px solid transparent;
+  box-shadow: var(--shadow-card);
+  background: var(--color-surface);
+  transition: transform 0.08s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .nav-link:hover {
   background: var(--color-surface-muted);
+  box-shadow: var(--shadow-panel);
+}
+
+.nav-link:active {
+  transform: scale(0.97);
 }
 
 .nav-link.active {
   background: var(--color-primary);
+  border-color: var(--color-primary-dark);
   color: white;
 }
 
@@ -246,6 +292,9 @@ h3 {
 
 /* Buttons */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   border: none;
   border-radius: 999px;
   padding: 12px 22px;
@@ -255,6 +304,7 @@ h3 {
   transition: transform 0.08s ease, box-shadow 0.15s ease;
   touch-action: manipulation;
   font-family: var(--font-system);
+  text-decoration: none;
 }
 
 .btn:active {
@@ -319,9 +369,13 @@ h3 {
   font-size: 0.95rem;
 }
 
+/* Same "selected" semantic as .btn-toggle.active / .btn-tab.active — the
+   accent color stays reserved for warm CTAs and highlights (the dashboard's
+   "Illustrer" action, the reward screen), not reused as a second "this one
+   is active" signal alongside the primary green. */
 .btn-chip.active {
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
+  background: var(--color-primary);
+  color: white;
 }
 
 /* Word stage */
@@ -398,6 +452,9 @@ h3 {
   right: 14px;
   width: 32px;
   height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   border: none;
   background: var(--color-surface-muted);
@@ -702,7 +759,7 @@ h3 {
 .page {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .page-header-row {
@@ -710,13 +767,14 @@ h3 {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .page-subtitle {
   margin: 0;
   color: var(--color-text-muted);
   font-weight: 600;
+  font-size: 0.85rem;
 }
 
 .breadcrumb {
@@ -761,6 +819,38 @@ h3 {
   flex-wrap: wrap;
 }
 
+/* Child picker — used by both TrainingHubPage and EvaluationsHubPage when
+   there's more than one child to choose between (never shown for a single
+   child, which skips straight past this). */
+.student-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.student-picker-item {
+  font-size: 1.05rem;
+}
+
+/* A <select> counterpart to .word-input, for the rare form (currently just
+   "assigner une évaluation") that needs a plain dropdown rather than a
+   big, word-sized text field. */
+.select-input {
+  padding: 10px 14px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-system);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.select-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
 .word-create-form {
   display: flex;
   flex-direction: column;
@@ -768,163 +858,79 @@ h3 {
   max-width: 480px;
 }
 
-/* Dashboard */
+/* Dashboard — a warm, low-text landing screen: the mascotte, a short
+   contextual greeting, and one deliberate call to action. Navigating
+   anywhere else is the header's icon nav band's job (see .app-nav), so
+   this screen no longer duplicates it with its own tiles. */
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-5);
 }
 
-.dashboard-greeting {
+.dashboard-mascot-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-4);
+}
+
+/* A soft glow behind the mascotte — the one deliberately warmer, more
+   "alive" touch on an otherwise sober parent screen, using the existing
+   accent color rather than a new one. */
+.dashboard-mascot-glow {
+  position: absolute;
+  top: 0;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent) 22%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+.dashboard-mascot {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  object-fit: contain;
+}
+
+.dashboard-mascot-bubble {
+  position: relative;
+  max-width: 320px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-card);
+}
+
+.dashboard-mascot-bubble::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 14px;
+  height: 14px;
+  background: var(--color-surface);
+  border-left: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-border);
+}
+
+.dashboard-mascot-message {
   margin: 0;
+  text-align: center;
   font-family: var(--font-heading);
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--color-primary-dark);
 }
 
-/* The two main parent actions — bigger and more colorful than anything else
-   on the dashboard, so they read as the obvious next step at a glance. */
-.dashboard-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.dashboard-hero-btn {
-  flex: 1 1 260px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 22px 26px;
-  border-radius: var(--radius-lg);
-  text-decoration: none;
-  font-family: var(--font-heading);
-  font-size: 1.25rem;
-  font-weight: 700;
-  box-shadow: var(--shadow-card);
-  transition: transform 0.08s ease, box-shadow 0.15s ease;
-}
-
-.dashboard-hero-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-panel);
-}
-
-.dashboard-hero-btn:active {
-  transform: scale(0.98);
-}
-
-.dashboard-hero-btn-icon {
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.dashboard-hero-btn-primary {
-  background: var(--color-primary);
-  color: white;
-}
-
-.dashboard-hero-btn-accent {
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
-}
-
-/* Same three destinations as before, kept as a secondary, visually quieter
-   row beneath the two hero actions — smaller icons, no shadow, no card-tab
-   flourish — rather than removed or turned into a new feature. */
-.dashboard-secondary-heading {
-  margin: 6px 0 -6px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.dashboard-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 18px;
-}
-
-.dashboard-tiles-secondary {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
-}
-
-.dashboard-tiles-secondary .dashboard-tile {
-  padding: 16px 18px;
-  gap: 4px;
-  box-shadow: none;
-}
-
-.dashboard-tiles-secondary .dashboard-tile::before {
-  display: none;
-}
-
-.dashboard-tiles-secondary .dashboard-tile-icon {
-  font-size: 1.6rem;
-}
-
-.dashboard-tiles-secondary .dashboard-tile-title {
-  font-size: 1rem;
-}
-
-.dashboard-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 24px;
-  border-radius: var(--radius-lg);
-  border: 2px solid var(--color-border);
-  text-decoration: none;
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-card);
-  position: relative;
-  overflow: hidden;
-}
-
-/* The one signature flourish of this identity — a small card-catalog tab
-   peeking out of each tile, like an index card in a drawer. Kept to this
-   one place rather than repeated on every card in the app. */
-.dashboard-tile::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 20px;
-  width: 34px;
-  height: 8px;
-  background: var(--color-primary);
-  border-radius: 0 0 6px 6px;
-  opacity: 0.85;
-}
-
-.dashboard-tile:hover {
-  border-color: var(--color-primary);
-}
-
-.dashboard-tile-icon {
-  font-size: 2.2rem;
-}
-
-.dashboard-tile-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  font-family: var(--font-heading);
-}
-
-.dashboard-tile-description {
-  color: var(--color-text-muted);
-}
-
-.dashboard-tile-stat {
-  margin-top: 4px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  font-variant-numeric: tabular-nums;
+.dashboard-cta {
+  align-self: center;
 }
 
 /* Card lists (students, words, series) */
@@ -950,6 +956,24 @@ h3 {
 
 .card-list-item:hover {
   border-color: var(--color-primary);
+}
+
+/* A card-list-item whose leading text is actually an icon (ChildIcon,
+   TargetIcon, EvaluationIcon…) rather than an emoji character — needs an
+   explicit flex row to align the two, unlike plain text content. */
+.card-list-item-icon {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Same idea, but for just the leading title span inside a
+   .card-list-item-row (which already has its own trailing meta span) —
+   inline-flex so it doesn't claim the whole row's width. */
+.card-list-item-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .card-list-row {
@@ -1185,6 +1209,17 @@ h3 {
   gap: 12px;
 }
 
+/* "Add a word to this entraînement" panel — pick from the bank, or a link
+   to generate a brand new illustrated word (see SeriesDetailPage). */
+.series-add-words-panel {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -1358,6 +1393,7 @@ h3 {
 }
 
 .series-word-item {
+  position: relative;
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 12px;
@@ -1399,6 +1435,35 @@ h3 {
   object-fit: contain;
   border-radius: var(--radius-sm);
   background: var(--color-surface-muted);
+}
+
+/* AI proposal zoom — click a proposal in the results grid to inspect it
+   full-size before choosing; a plain overlay + panel, not a second
+   decision point (the actual "Choisir" stays only on the grid). */
+.ai-proposal-zoom-trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
+.ai-proposal-zoom-panel {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: min(90vw, 640px);
+  max-height: 90vh;
+  display: flex;
+}
+
+.ai-proposal-zoom-image {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: var(--radius-md);
+  object-fit: contain;
 }
 
 .ai-generating {
@@ -1535,6 +1600,14 @@ h3 {
 
 .word-bank-item:hover .word-bank-delete-btn,
 .word-bank-delete-btn:focus-visible {
+  opacity: 1;
+}
+
+/* On the série detail screen this button is only ever rendered at all
+   while explicitly in "add/retirer des mots" mode (see SeriesDetailPage) —
+   unlike the word bank's always-present grid, there's no reason to also
+   hide it behind a hover, especially on a touch device. */
+.series-word-item .word-bank-delete-btn {
   opacity: 1;
 }
 
@@ -1763,25 +1836,59 @@ h3 {
 
 .practice-entry-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 16px 18px;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4);
   background: var(--color-surface-muted);
   border-radius: var(--radius-md);
+}
+
+.practice-start-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .practice-level-links {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .practice-level-links-label {
   color: var(--color-text-muted);
   font-size: 0.9rem;
   margin-right: 2px;
+}
+
+/* A small, friendly pill rather than the plain .btn-chip used elsewhere —
+   the star (see StarIcon) stands in for the word "Niveau" instead of an
+   emoji, matching the rest of the icon set's stroke style. */
+.practice-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.08s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.practice-level-chip:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-panel);
+}
+
+.practice-level-chip:active {
+  transform: scale(0.96);
 }
 
 .practice-series-title {
@@ -2216,6 +2323,49 @@ h3 {
 .practice-reward-detail {
   color: var(--color-text-muted);
   margin: 0;
+}
+
+/* Level transition — a brief recognition beat between two levels of a full
+   run, echoing the reward screen's own mascotte + stars language but
+   scaled down to just the level that was just finished. Never shown after
+   the last level (that's .practice-reward above) or during a single-level
+   run. */
+.practice-level-transition {
+  max-width: 420px;
+  margin: 40px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6) var(--space-5);
+}
+
+.practice-level-transition-mascot {
+  width: 76px;
+  height: 76px;
+  object-fit: contain;
+  animation: practice-mascot-bounce 0.5s ease;
+}
+
+.practice-level-transition-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.practice-level-transition-stars {
+  font-size: 2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-level-transition-mascot {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {

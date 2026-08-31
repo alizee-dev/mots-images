@@ -1,95 +1,99 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyStudents } from '../api/students'
-import { getWords } from '../api/words'
-import { getSeries } from '../api/series'
+import { createStudent, getMyStudents } from '../api/students'
+import mascotNeutral from '../assets/mascots/mascotte_neutre.png'
+import PlusIcon from '../components/PlusIcon'
 
-const TILES = [
-  {
-    to: '/students',
-    icon: '🧒',
-    title: 'Enfants',
-    description: 'Gérer les enfants et suivre leurs résultats.',
-    statKey: 'students',
-    statLabel: (n) => `${n} enfant${n === 1 ? '' : 's'} suivi${n === 1 ? '' : 's'}`,
-  },
-  {
-    to: '/words',
-    icon: '🖼️',
-    title: 'Ma banque de mots',
-    description: 'Créer et illustrer des mots.',
-    statKey: 'words',
-    statLabel: (n) => `${n} mot${n === 1 ? '' : 's'} dans la banque`,
-  },
-  {
-    to: '/series',
-    icon: '📚',
-    title: 'Entraînements',
-    description: 'Regrouper des mots et les assigner.',
-    statKey: 'series',
-    statLabel: (n) => `${n} entraînement${n === 1 ? '' : 's'}`,
-  },
-]
-
+// The dashboard used to stack three overlapping ways to reach the same
+// handful of destinations (a header button, two hero buttons, a row of
+// tiles) — all of that navigation now lives in one place, the header's
+// icon nav band (see Layout/.app-nav). This screen keeps a single job: a
+// warm, low-text landing moment (the mascotte + a short greeting) plus the
+// one action a parent comes back to most — illustrating a new word. With
+// no child added yet, that greeting becomes the invitation to add one —
+// entraînements now belong to a specific child, so there's nothing useful
+// to do anywhere else in the app until at least one exists.
 export default function DashboardPage() {
-  const [stats, setStats] = useState({})
-  // Only the first linked child's first name is used for the greeting below
-  // — with several children, picking one avoids an awkward list in a single
-  // sentence; with none, no personalized greeting is shown at all.
-  const [firstChildName, setFirstChildName] = useState(null)
+  // null while the first fetch is in flight, an array once it resolves —
+  // needed both for the greeting and to tell "no child yet" apart from "the
+  // request failed", which must never be presented as the same thing (a
+  // connectivity error is not "you have no children").
+  const [students, setStudents] = useState(null)
+  const [loadError, setLoadError] = useState(false)
+  const [childName, setChildName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState(null)
 
   useEffect(() => {
     getMyStudents()
-      .then((s) => {
-        setStats((prev) => ({ ...prev, students: s.length }))
-        setFirstChildName(s[0]?.name || null)
-      })
-      .catch(() => {})
-    getWords()
-      .then((w) => setStats((prev) => ({ ...prev, words: w.length })))
-      .catch(() => {})
-    getSeries()
-      .then((s) => setStats((prev) => ({ ...prev, series: s.length })))
-      .catch(() => {})
+      .then(setStudents)
+      .catch(() => setLoadError(true))
   }, [])
+
+  const handleCreateChild = async (e) => {
+    e.preventDefault()
+    const name = childName.trim()
+    if (!name) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const student = await createStudent(name)
+      setStudents((prev) => [...(prev || []), student])
+      setChildName('')
+    } catch (err) {
+      setCreateError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const hasNoChildren = !loadError && students !== null && students.length === 0
+  const firstChildName = students?.[0]?.name
+
+  const message = hasNoChildren
+    ? 'Commençons par ajouter ton premier enfant !'
+    : firstChildName
+      ? `L’entraînement de ${firstChildName} t’attend !`
+      : 'Par quoi on commence aujourd’hui ?'
 
   return (
     <div className="dashboard">
-      <div className="page-header-row">
-        <h2>Tableau de bord</h2>
-        <Link to="/words/new" className="btn btn-toggle active">
-          ✨ Illustrer
-        </Link>
-      </div>
+      <h2>Tableau de bord</h2>
 
-      {firstChildName && (
-        <p className="dashboard-greeting">Bonjour, l’entraînement de {firstChildName} t’attend</p>
-      )}
+      <div className="dashboard-mascot-block">
+        <div className="dashboard-mascot-glow" aria-hidden="true" />
+        <img src={mascotNeutral} alt="" className="dashboard-mascot" />
+        <div className="dashboard-mascot-bubble">
+          <p className="dashboard-mascot-message">{message}</p>
+        </div>
 
-      <div className="dashboard-hero-actions">
-        <Link to="/words" className="dashboard-hero-btn dashboard-hero-btn-primary">
-          <span className="dashboard-hero-btn-icon">🖼️</span>
-          Illustrer des mots
-        </Link>
-        <Link to="/series/new" className="dashboard-hero-btn dashboard-hero-btn-accent">
-          <span className="dashboard-hero-btn-icon">📚</span>
-          Créer un entraînement
-        </Link>
-      </div>
-
-      <p className="dashboard-secondary-heading">Accès rapide</p>
-      <div className="dashboard-tiles dashboard-tiles-secondary">
-        {TILES.map((tile) => {
-          const count = stats[tile.statKey]
-          return (
-            <Link key={tile.to} to={tile.to} className="dashboard-tile">
-              <span className="dashboard-tile-icon">{tile.icon}</span>
-              <span className="dashboard-tile-title">{tile.title}</span>
-              <span className="dashboard-tile-description">{tile.description}</span>
-              {count !== undefined && <span className="dashboard-tile-stat">{tile.statLabel(count)}</span>}
-            </Link>
-          )
-        })}
+        {hasNoChildren ? (
+          <form className="inline-form" onSubmit={handleCreateChild}>
+            <input
+              type="text"
+              className="word-input"
+              placeholder="Prénom de l’enfant"
+              value={childName}
+              onChange={(e) => setChildName(e.target.value)}
+              required
+            />
+            <button type="submit" className="btn btn-toggle active" disabled={creating}>
+              {creating ? (
+                'Ajout…'
+              ) : (
+                <>
+                  <PlusIcon size={18} />
+                  Ajouter
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          <Link to="/words/new" className="btn btn-toggle active dashboard-cta">
+            ✨ Illustrer un mot
+          </Link>
+        )}
+        {createError && <p className="form-error">{createError}</p>}
       </div>
     </div>
   )

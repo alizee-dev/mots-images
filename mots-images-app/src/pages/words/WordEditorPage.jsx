@@ -3,7 +3,11 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
 import WordStage from '../../components/WordStage'
 import IllustrationEditor from '../../components/IllustrationEditor'
+import PrintWordsButton from '../../components/PrintWordsButton'
+import SaveIcon from '../../components/SaveIcon'
+import CloseIcon from '../../components/CloseIcon'
 import { createWord, generateWordIllustration, getWords, updateWord } from '../../api/words'
+import { addWordsToSeries } from '../../api/series'
 import {
   AI_WHOLE_WORD_LETTER_INDEX,
   computeWordBounds,
@@ -118,6 +122,10 @@ export default function WordEditorPage() {
   const [aiSelectedIndices, setAiSelectedIndices] = useState([])
   const [aiError, setAiError] = useState(null)
   const [aiProposals, setAiProposals] = useState([])
+  // A proposal opened full-size for a closer look before committing to it —
+  // separate from `mode`/`aiFlow`, just an overlay on top of the results
+  // grid, closed by its own × back to the grid where "Choisir" still is.
+  const [zoomedProposal, setZoomedProposal] = useState(null)
 
   const loadedOnce = useRef(false)
   const previewContainerRef = useRef(null)
@@ -205,7 +213,7 @@ export default function WordEditorPage() {
 
   // Presence of this reserved zone means the word currently shows a chosen
   // AI illustration instead of the normal interactive letter row — see
-  // applyAiProposal / removeAiWholeWordImage.
+  // applyAiProposal.
   const aiWholeWordImage = useMemo(() => getAiWholeWordImage(zones), [zones])
 
   const handleCreate = async (e) => {
@@ -216,7 +224,20 @@ export default function WordEditorPage() {
     setCreationError(null)
     try {
       const word = await createWord(text, '')
-      navigate(`/words/${word.id}?autoAi=1`, { replace: true })
+      // Arriving here from a série's own "✨ Générer un nouveau mot" entry
+      // point (see SeriesDetailPage) means the word is meant to land in
+      // that entraînement directly, not just the general bank — best
+      // effort: a failure here shouldn't block the parent from continuing
+      // to illustrate the word they just created.
+      if (fromSeriesId) {
+        await addWordsToSeries(fromSeriesId, [word.id]).catch(() => {})
+      }
+      const params = new URLSearchParams({ autoAi: '1' })
+      if (fromSeriesId) {
+        params.set('fromSeriesId', fromSeriesId)
+        if (fromSeries?.title) params.set('fromSeriesTitle', fromSeries.title)
+      }
+      navigate(`/words/${word.id}?${params.toString()}`, { replace: true })
     } catch (err) {
       setCreationError(err.message)
       setSubmitting(false)
@@ -413,20 +434,6 @@ export default function WordEditorPage() {
     probe.src = dataUrl
   }, [resetAiFlow])
 
-  // Clears the AI illustration and goes back to a blank slate for manual
-  // per-letter editing — the two are mutually exclusive (see WordStage),
-  // so there's nothing else in `zones` worth keeping once this is removed.
-  const removeAiWholeWordImage = useCallback(() => {
-    if (
-      !window.confirm(
-        "Retirer l'illustration générée par IA de ce mot ? Tu pourras ensuite illustrer chaque lettre manuellement."
-      )
-    ) {
-      return
-    }
-    setZones([])
-  }, [])
-
   // None of the 3 proposals fit — falls back to the exact same manual
   // editor a normal letter click would open, on the first letter of the
   // range that was picked.
@@ -486,10 +493,6 @@ export default function WordEditorPage() {
     [saveZone]
   )
 
-  const handlePrint = () => {
-    window.print()
-  }
-
   const zoneLabel = (zone) => {
     const char = Array.from(wordText)[zone.letterIndex] || '?'
     const count = zone.illustration.strokes.length + zone.illustration.stickers.length + zone.illustration.images.length
@@ -545,18 +548,16 @@ export default function WordEditorPage() {
         <h2>{wordText}</h2>
         <div className="app-header-actions">
           {saveError && <span className="form-error">{saveError}</span>}
-          {mode === 'edit' && !aiFlow && (
-            <button type="button" className="btn btn-secondary" onClick={() => setMode('preview')}>
-              👁️ Aperçu
-            </button>
-          )}
-          {mode === 'edit' && !aiFlow && (
-            <button type="button" className="btn btn-secondary" onClick={startAiFlow}>
-              ✨ Illustrer avec l’IA (bêta)
-            </button>
-          )}
+          <PrintWordsButton words={[{ id: wordId, text: wordText, zones }]} className="btn btn-secondary" />
           <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
-            {saving ? 'Enregistrement…' : '💾 Enregistrer'}
+            {saving ? (
+              'Enregistrement…'
+            ) : (
+              <>
+                <SaveIcon size={18} />
+                Enregistrer
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -626,11 +627,18 @@ export default function WordEditorPage() {
               <div className="ai-proposal-grid">
                 {aiProposals.map((proposal) => (
                   <div key={proposal.id} className="ai-proposal-card">
-                    <img
-                      className="ai-proposal-image"
-                      src={`data:image/png;base64,${proposal.image}`}
-                      alt="Proposition d'illustration générée par IA"
-                    />
+                    <button
+                      type="button"
+                      className="ai-proposal-zoom-trigger"
+                      onClick={() => setZoomedProposal(proposal)}
+                      aria-label="Agrandir cette proposition"
+                    >
+                      <img
+                        className="ai-proposal-image"
+                        src={`data:image/png;base64,${proposal.image}`}
+                        alt="Proposition d'illustration générée par IA"
+                      />
+                    </button>
                     <button type="button" className="btn btn-toggle active" onClick={() => applyAiProposal(proposal)}>
                       Choisir
                     </button>
@@ -648,37 +656,34 @@ export default function WordEditorPage() {
             </div>
           )}
 
-          {!aiFlow && aiWholeWordImage && (
-            <div className="app-header-actions no-print">
-              <button type="button" className="btn btn-ghost" onClick={removeAiWholeWordImage}>
-                🗑️ Retirer l’illustration IA
-              </button>
+          {zoomedProposal && (
+            <div className="editor-overlay no-print" role="dialog" aria-modal="true" onClick={() => setZoomedProposal(null)}>
+              <div className="ai-proposal-zoom-panel" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="editor-close-btn"
+                  onClick={() => setZoomedProposal(null)}
+                  aria-label="Fermer"
+                >
+                  <CloseIcon size={16} />
+                </button>
+                <img
+                  className="ai-proposal-zoom-image"
+                  src={`data:image/png;base64,${zoomedProposal.image}`}
+                  alt="Proposition d'illustration générée par IA, agrandie"
+                />
+              </div>
             </div>
           )}
 
-          {!aiFlow && (
-            <>
-              <label htmlFor="word-sentence" className="word-input-label">
-                Phrase à trous (facultatif)
-              </label>
-              <input
-                id="word-sentence"
-                type="text"
-                className="word-input"
-                value={sentence}
-                onChange={(e) => setSentence(e.target.value)}
-              />
-
-              {!aiWholeWordImage && zones.length > 0 && (
-                <div className="zone-list no-print">
-                  {zones.map((zone) => (
-                    <button key={zone.id} type="button" className="zone-chip" onClick={() => setActiveZoneId(zone.id)}>
-                      {zoneLabel(zone)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
+          {!aiFlow && !aiWholeWordImage && zones.length > 0 && (
+            <div className="zone-list no-print">
+              {zones.map((zone) => (
+                <button key={zone.id} type="button" className="zone-chip" onClick={() => setActiveZoneId(zone.id)}>
+                  {zoneLabel(zone)}
+                </button>
+              ))}
+            </div>
           )}
         </>
       )}
@@ -695,9 +700,6 @@ export default function WordEditorPage() {
               onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
             >
               {theme === 'dark' ? '☀️ Clair' : '🌙 Sombre'}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={handlePrint}>
-              🖨️ Imprimer
             </button>
           </div>
           <div className="preview-wrap print-area" ref={previewContainerRef}>

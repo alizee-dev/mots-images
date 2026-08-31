@@ -1,11 +1,12 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createWord, getWords, removeWordFromBank } from '../../api/words'
+import { addWordsToSeries } from '../../api/series'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
-import WordCardsStaging from '../../components/WordCardsStaging'
+import PrintWordsButton from '../../components/PrintWordsButton'
 import TrashIcon from '../../components/TrashIcon'
-import { PRINT_LAYOUTS } from '../../printLayouts'
-import { buildPrintDocument } from '../../printDocument'
+import TargetIcon from '../../components/TargetIcon'
+import CheckIcon from '../../components/CheckIcon'
 
 // How long a single-word delete stays undoable before the actual API call
 // fires — no confirmation popup at all: the card leaves the grid right away,
@@ -17,38 +18,6 @@ const UNDO_DELAY_MS = 6000
 // just a status line, not something with its own action window, so it isn't
 // meant to linger indefinitely.
 const BULK_MESSAGE_DELAY_MS = 5000
-
-// Every illustration image (letter stickers, crops, and an AI whole-word
-// image alike — all stored the same way in zone.illustration.images) used
-// by a set of words, as a flat list of data URLs.
-function collectImageDataUrls(words) {
-  const urls = []
-  words.forEach((word) => {
-    ;(word.zones || []).forEach((zone) => {
-      ;(zone.illustration?.images || []).forEach((im) => {
-        if (im.dataUrl) urls.push(im.dataUrl)
-      })
-    })
-  })
-  return urls
-}
-
-// Resolves once every image is loaded (or has failed — one broken image
-// shouldn't block printing the rest forever).
-function preloadImages(words) {
-  const urls = collectImageDataUrls(words)
-  return Promise.all(
-    urls.map(
-      (url) =>
-        new Promise((resolve) => {
-          const img = new window.Image()
-          img.onload = resolve
-          img.onerror = resolve
-          img.src = url
-        })
-    )
-  )
-}
 
 const PAGE_SIZE = 20
 
@@ -64,8 +33,19 @@ function getPageNumbers(current, total) {
   return [...new Set(pages)].sort((a, b) => a - b)
 }
 
+// Reached two ways: as the plain word bank (`/words`), or — when
+// `forSeries` is in the URL — as the "add words to this entraînement"
+// screen (see SeriesDetailPage's "Ajouter des mots" and NewSeriesPage),
+// so a parent gets the exact same browsing/search/illustrate experience
+// either way instead of a second, smaller picker duplicating this one.
 export default function WordsBankPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const forSeriesId = searchParams.get('forSeries')
+  const forSeriesTitle = searchParams.get('seriesTitle') || ''
+  const forStudentId = searchParams.get('studentId') || ''
+  const addMode = Boolean(forSeriesId)
+
   const [words, setWords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -82,15 +62,10 @@ export default function WordsBankPage() {
   const [bulkMessage, setBulkMessage] = useState(null)
   const [bulkError, setBulkError] = useState(null)
 
-  const [printDialogOpen, setPrintDialogOpen] = useState(false)
-  const [printLayoutChoice, setPrintLayoutChoice] = useState(PRINT_LAYOUTS[0].id)
-  const [printing, setPrinting] = useState(false)
-  // Only set while the hidden staging area (see WordCardsStaging) needs to
-  // be mounted to export each selected card as an image — never rendered
-  // as visible page content.
-  const [exportLayout, setExportLayout] = useState(null)
-  const [exportWords, setExportWords] = useState([])
-  const stageRefs = useRef({})
+  // addMode's own lightweight tap-to-add state — no bulk confirm step, a
+  // tap adds the word right away and marks it added.
+  const [addedIds, setAddedIds] = useState(() => new Set())
+  const [addingId, setAddingId] = useState(null)
 
   // Words optimistically hidden from the grid while their undo window is
   // still open. The word itself stays in `words` until the delete actually
@@ -158,18 +133,33 @@ export default function WordsBankPage() {
   // to it acts on whatever's currently typed there, creating the word and
   // taking the parent straight to the letter-picking step (see WordEditorPage's
   // autoAi query param), instead of retyping the same word on a second
-  // screen. An empty field just opens a blank "Illustrer un mot" form.
+  // screen. An empty field just opens a blank "Illustrer un mot" form. In
+  // addMode, the new word is also added to the entraînement right away, and
+  // fromSeriesId/fromSeriesTitle tag along so the editor's own breadcrumb
+  // brings the parent back here once they're done illustrating it.
   const handleIllustrateClick = async () => {
     const text = search.trim()
     if (!text) {
-      navigate('/words/new')
+      navigate(
+        addMode
+          ? `/words/new?fromSeriesId=${encodeURIComponent(forSeriesId)}&fromSeriesTitle=${encodeURIComponent(forSeriesTitle)}`
+          : '/words/new'
+      )
       return
     }
     setIllustrating(true)
     setError(null)
     try {
       const word = await createWord(text, '')
-      navigate(`/words/${word.id}?autoAi=1`)
+      if (addMode) {
+        await addWordsToSeries(forSeriesId, [word.id]).catch(() => {})
+      }
+      const params = new URLSearchParams({ autoAi: '1' })
+      if (addMode) {
+        params.set('fromSeriesId', forSeriesId)
+        if (forSeriesTitle) params.set('fromSeriesTitle', forSeriesTitle)
+      }
+      navigate(`/words/${word.id}?${params.toString()}`)
     } catch (err) {
       setError(err.message)
       setIllustrating(false)
@@ -190,6 +180,20 @@ export default function WordsBankPage() {
       else next.add(wordId)
       return next
     })
+  }
+
+  const handleAddToSeries = async (word) => {
+    if (addingId || addedIds.has(word.id)) return
+    setAddingId(word.id)
+    setError(null)
+    try {
+      await addWordsToSeries(forSeriesId, [word.id])
+      setAddedIds((prev) => new Set(prev).add(word.id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAddingId(null)
+    }
   }
 
   // Clicking anywhere that isn't itself an interactive control (a card, a
@@ -284,141 +288,48 @@ export default function WordsBankPage() {
 
   const selectedWords = words.filter((w) => selectedIds.has(w.id))
 
-  // Prints in a genuinely separate window instead of scrolling to an inline
-  // section of this (potentially very long) page, and sidesteps the whole
-  // "hide everything except .print-area" CSS trick that kept leaving pages
-  // blank or misplaced: each selected card is exported as a flat image (via
-  // Konva's own toDataURL, see WordCardsStaging) and handed to a
-  // self-contained popup document that has nothing else in it to hide.
-  const handleConfirmPrint = async () => {
-    setError(null)
-    const layout = printLayoutChoice
-    const wordsToExport = selectedWords
-    if (wordsToExport.length === 0) return
-
-    // Opened synchronously, right inside this click handler, before any
-    // await — some browsers' popup blockers stop treating window.open() as
-    // a direct response to the user's click once it happens after an
-    // awaited gap, even from a real click like this one.
-    const popup = window.open('', '_blank', 'width=1000,height=800')
-    if (!popup) {
-      setError("La fenêtre d'impression a été bloquée par le navigateur. Autorise les pop-ups pour ce site, puis réessaie.")
-      return
-    }
-    popup.document.write('<p style="font-family:sans-serif;padding:24px;">Préparation de l’impression…</p>')
-
-    setPrinting(true)
-    setExportLayout(layout)
-    setExportWords(wordsToExport)
-    try {
-      await preloadImages(wordsToExport)
-      // Two frames so the hidden staging area (mounted by the state above)
-      // has actually committed and Konva has painted onto each canvas —
-      // reading toDataURL() before that exports a blank image.
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-
-      const cardImageUrls = wordsToExport
-        .map((word) => stageRefs.current[word.id]?.toDataURL({ pixelRatio: 2 }))
-        .filter(Boolean)
-
-      if (cardImageUrls.length === 0) {
-        popup.close()
-        setError("Impossible de préparer les cartes pour l'impression.")
-        return
-      }
-
-      const html = buildPrintDocument(cardImageUrls, layout)
-      popup.document.open()
-      popup.document.write(html)
-      popup.document.close()
-
-      const waitForImages = () =>
-        Promise.all(
-          Array.from(popup.document.images).map((img) =>
-            img.complete
-              ? Promise.resolve()
-              : new Promise((resolve) => {
-                  img.onload = resolve
-                  img.onerror = resolve
-                })
-          )
-        )
-      await waitForImages()
-      // window.print() doesn't report whether the user actually printed or
-      // hit "Annuler" in the browser's own print dialog — afterprint fires
-      // either way, right when that dialog is dismissed, so this popup
-      // (whose only purpose was showing the cards to print) can close
-      // itself immediately instead of being left behind as an extra window
-      // the parent has to close by hand.
-      popup.addEventListener('afterprint', () => popup.close())
-      popup.focus()
-      popup.print()
-    } finally {
-      setExportLayout(null)
-      setExportWords([])
-      setPrinting(false)
-      setPrintDialogOpen(false)
-    }
-  }
-
   const handleCreateSeriesFromSelection = () => {
-    navigate('/series/new', { state: { prefillWordIds: [...selectedIds] } })
+    // An entraînement now belongs to a specific child from the moment it's
+    // created — this hands off to TrainingHubPage, which resolves (or asks)
+    // which one before landing on the actual creation screen, carrying
+    // this selection along the whole way.
+    navigate('/training', { state: { prefillWordIds: [...selectedIds] } })
   }
 
   const pendingWords = [...pendingDeleteIds]
     .map((id) => words.find((w) => w.id === id))
     .filter(Boolean)
 
+  const seriesLink = `/series/${forSeriesId}`
+  const seriesLinkState = { title: forSeriesTitle, studentId: forStudentId || undefined }
+
   return (
     <div className="page" onClick={handlePageClick}>
-      <p className="breadcrumb">
-        <Link to="/">← Accueil</Link>
-      </p>
-      <div className="page-header-row">
-        <h2>Ma banque de mots</h2>
-        {selectionMode ? (
-          <div className="app-header-actions">
-            <span className="selection-count">
-              {selectedIds.size} sélectionné{selectedIds.size === 1 ? '' : 's'}
-            </span>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setPrintDialogOpen(true)}
-              disabled={selectedIds.size === 0}
-            >
-              🖨️ Imprimer
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleCreateSeriesFromSelection}
-              disabled={selectedIds.size === 0}
-            >
-              📚 Créer un entraînement
-            </button>
-            {scope === 'mine' && (
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={handleBulkDelete}
-                disabled={selectedIds.size === 0 || bulkDeleting}
-              >
-                {bulkDeleting ? 'Suppression…' : `🗑️ Supprimer${selectedIds.size ? ` (${selectedIds.size})` : ''}`}
-              </button>
-            )}
-            <button type="button" className="btn btn-ghost" onClick={toggleSelectionMode}>
-              Annuler
-            </button>
+      {addMode ? (
+        <>
+          <p className="breadcrumb">
+            <Link to={seriesLink} state={seriesLinkState}>
+              ← {forSeriesTitle ? `« ${forSeriesTitle} »` : 'Entraînement'}
+            </Link>
+          </p>
+          <div className="page-header-row">
+            <h2>Ajouter des mots{forSeriesTitle ? ` à « ${forSeriesTitle} »` : ''}</h2>
+            <Link to={seriesLink} state={seriesLinkState} className="btn btn-toggle active">
+              <CheckIcon size={18} />
+              Terminé
+            </Link>
           </div>
-        ) : (
-          <div className="app-header-actions">
-            <button type="button" className="btn btn-secondary" onClick={toggleSelectionMode}>
-              Sélectionner
-            </button>
+        </>
+      ) : (
+        <>
+          <p className="breadcrumb">
+            <Link to="/">← Accueil</Link>
+          </p>
+          <div className="page-header-row">
+            <h2>Ma banque de mots</h2>
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="inline-form">
         <input
@@ -432,6 +343,56 @@ export default function WordsBankPage() {
           {illustrating ? 'Création…' : '✨ Illustrer'}
         </button>
       </div>
+
+      {/* Below "Illustrer" rather than up in the header — the natural next
+          step once you've looked for/created a word is picking several of
+          them, not something to reach for before you've even seen the
+          list. */}
+      {!addMode && (
+        <div className="app-header-actions">
+          {selectionMode ? (
+            <>
+              <span className="selection-count">
+                {selectedIds.size} sélectionné{selectedIds.size === 1 ? '' : 's'}
+              </span>
+              <PrintWordsButton words={selectedWords} />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCreateSeriesFromSelection}
+                disabled={selectedIds.size === 0}
+              >
+                <TargetIcon size={18} />
+                Créer un entraînement
+              </button>
+              {scope === 'mine' && (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.size === 0 || bulkDeleting}
+                >
+                  {bulkDeleting ? (
+                    'Suppression…'
+                  ) : (
+                    <>
+                      <TrashIcon size={16} />
+                      {`Supprimer${selectedIds.size ? ` (${selectedIds.size})` : ''}`}
+                    </>
+                  )}
+                </button>
+              )}
+              <button type="button" className="btn btn-ghost" onClick={toggleSelectionMode}>
+                Annuler
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-secondary" onClick={toggleSelectionMode}>
+              Sélectionner
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="scope-toggle">
         <button
@@ -468,7 +429,7 @@ export default function WordsBankPage() {
         </div>
       )}
 
-      {!loading && filteredWords.length === 0 && (
+      {!loading && !error && filteredWords.length === 0 && (
         <p className="empty-hint">
           {words.length === 0 ? 'Aucun mot dans la banque pour l’instant.' : 'Aucun mot ne correspond à cette recherche.'}
         </p>
@@ -477,9 +438,23 @@ export default function WordsBankPage() {
       <ul className="card-list series-word-list">
         {pageWords.map((word) => {
           const selected = selectedIds.has(word.id)
+          const added = addMode && addedIds.has(word.id)
           return (
-            <li key={word.id} className={`series-word-item word-bank-item ${selected ? 'selected' : ''}`}>
-              {selectionMode ? (
+            <li key={word.id} className={`series-word-item word-bank-item ${selected || added ? 'selected' : ''}`}>
+              {addMode ? (
+                <button
+                  type="button"
+                  className="word-bank-card-select"
+                  onClick={() => handleAddToSeries(word)}
+                  disabled={added || addingId === word.id}
+                  aria-pressed={added}
+                >
+                  <span className="word-bank-checkbox" aria-hidden="true">
+                    {added ? '✓' : ''}
+                  </span>
+                  <IllustratedWordPreview text={word.text} zones={word.zones} />
+                </button>
+              ) : selectionMode ? (
                 <button
                   type="button"
                   className="word-bank-card-select"
@@ -555,45 +530,6 @@ export default function WordsBankPage() {
         </nav>
       )}
 
-      {printDialogOpen && (
-        <div className="editor-overlay no-print" role="dialog" aria-modal="true">
-          <div className="editor-panel">
-            <button
-              type="button"
-              className="editor-close-btn"
-              onClick={() => setPrintDialogOpen(false)}
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-            <h3>Choisir la mise en page</h3>
-            <div className="print-layout-options">
-              {PRINT_LAYOUTS.map((opt) => (
-                <label key={opt.id} className="print-layout-option">
-                  <input
-                    type="radio"
-                    name="print-layout"
-                    value={opt.id}
-                    checked={printLayoutChoice === opt.id}
-                    onChange={() => setPrintLayoutChoice(opt.id)}
-                  />
-                  <span className="print-layout-option-title">{opt.title}</span>
-                  <span className="print-layout-option-desc">{opt.description}</span>
-                </label>
-              ))}
-            </div>
-            {/* The dialog overlay covers the rest of the page, so an error
-                shown only down there (see the page-level error message)
-                would be invisible while this stays open. */}
-            {error && <p className="form-error">{error}</p>}
-            <button type="button" className="btn btn-toggle active" onClick={handleConfirmPrint} disabled={printing}>
-              {printing ? 'Préparation…' : '🖨️ Imprimer'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {exportLayout && <WordCardsStaging words={exportWords} layout={exportLayout} stageRefs={stageRefs} />}
     </div>
   )
 }

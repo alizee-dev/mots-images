@@ -1,64 +1,27 @@
-import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { createWord, getWords, updateWord } from '../../api/words'
+import { useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { addWordsToSeries, createSeries } from '../../api/series'
+import { assignSeriesToStudents } from '../../api/assignments'
 
+// Just the title — choosing words now happens on the word bank itself, in
+// its "add to this entraînement" mode (see WordsBankPage), so this screen
+// doesn't need to duplicate that picker anymore.
 export default function NewSeriesPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  // An entraînement now belongs to exactly one child from the moment it's
+  // created — this screen is only ever reached already scoped to one, via
+  // TrainingHubPage/StudentTrainingListPage.
+  const { studentId } = useParams()
   // Set when arriving from the word bank's "Créer un entraînement" bulk
-  // action (see WordsBankPage) — applied once, the first time the word list
-  // for step 'words' loads, so it doesn't fight with the parent manually
-  // removing one of these words afterward.
+  // action (see WordsBankPage) — those words are already chosen, so once
+  // the série exists it goes straight to the finished entraînement instead
+  // of back through word selection.
   const prefillWordIds = location.state?.prefillWordIds || null
-  const [step, setStep] = useState('title')
+
   const [title, setTitle] = useState('')
-  const [seriesId, setSeriesId] = useState(null)
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-
-  const [words, setWords] = useState([])
-  const [wordsLoading, setWordsLoading] = useState(false)
-  const [selected, setSelected] = useState([])
-  const [search, setSearch] = useState('')
-  const [quickWordText, setQuickWordText] = useState('')
-  const [quickWordSubmitting, setQuickWordSubmitting] = useState(false)
-  // Ids of selected words for which the inline "phrase à trous" field is
-  // shown — any word (bank-picked or quick-added) that had no sentence at
-  // the moment it was selected, so a series never quietly ends up with a
-  // word missing its phrase. Once shown for a word it stays shown for the
-  // rest of this session, even after a sentence is typed in, so the field
-  // doesn't disappear out from under the teacher mid-edit.
-  const [sentenceFieldIds, setSentenceFieldIds] = useState(() => new Set())
-
-  useEffect(() => {
-    if (step !== 'words') return
-    setWordsLoading(true)
-    getWords()
-      .then((list) => {
-        setWords(list)
-        if (prefillWordIds && prefillWordIds.length > 0) {
-          const toPrefill = list.filter((w) => prefillWordIds.includes(w.id))
-          setSelected((prev) => {
-            const existingIds = new Set(prev.map((w) => w.id))
-            return [...prev, ...toPrefill.filter((w) => !existingIds.has(w.id))]
-          })
-          setSentenceFieldIds((prev) => {
-            const next = new Set(prev)
-            toPrefill.forEach((w) => {
-              if (!w.sentence) next.add(w.id)
-            })
-            return next
-          })
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setWordsLoading(false))
-    // Only re-runs when `step` changes (i.e. once, on entering 'words') —
-    // prefillWordIds is deliberately excluded so this doesn't re-apply and
-    // fight a manual removal.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step])
 
   const handleCreateTitle = async (e) => {
     e.preventDefault()
@@ -67,209 +30,50 @@ export default function NewSeriesPage() {
     setError(null)
     try {
       const series = await createSeries(title.trim())
-      setSeriesId(series.id)
-      setStep('words')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
+      // Assigning it to this child right away is what makes it theirs, and
+      // is also what spontaneously generates the pending évaluation shown
+      // on their Évaluations screen — happens as soon as the entraînement
+      // exists, regardless of whether words are added immediately after or
+      // the parent comes back to it later.
+      await assignSeriesToStudents(series.id, [studentId])
 
-  const addWord = (word) => {
-    if (selected.some((w) => w.id === word.id)) return
-    setSelected((prev) => [...prev, word])
-    if (!word.sentence) {
-      setSentenceFieldIds((prev) => new Set(prev).add(word.id))
-    }
-  }
-
-  const removeWord = (wordId) => {
-    setSelected((prev) => prev.filter((w) => w.id !== wordId))
-  }
-
-  const handleQuickAddWord = async (e) => {
-    e.preventDefault()
-    const text = quickWordText.trim()
-    if (!text) return
-    setQuickWordSubmitting(true)
-    setError(null)
-    try {
-      const word = await createWord(text, '')
-      setSelected((prev) => [...prev, word])
-      setSentenceFieldIds((prev) => new Set(prev).add(word.id))
-      setQuickWordText('')
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setQuickWordSubmitting(false)
-    }
-  }
-
-  const updateSelectedSentence = (wordId, sentence) => {
-    setSelected((prev) => prev.map((w) => (w.id === wordId ? { ...w, sentence } : w)))
-  }
-
-  const saveSelectedSentence = async (word) => {
-    try {
-      await updateWord(word.id, word.sentence || '', word.zones || [])
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  const moveWord = (index, direction) => {
-    setSelected((prev) => {
-      const next = [...prev]
-      const target = index + direction
-      if (target < 0 || target >= next.length) return prev
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return next
-    })
-  }
-
-  const handleFinish = async () => {
-    setSubmitting(true)
-    setError(null)
-    try {
-      if (selected.length > 0) {
-        await addWordsToSeries(
-          seriesId,
-          selected.map((w) => w.id)
-        )
+      if (prefillWordIds && prefillWordIds.length > 0) {
+        await addWordsToSeries(series.id, prefillWordIds)
+        navigate(`/series/${series.id}`, { state: { title: title.trim(), studentId } })
+        return
       }
-      navigate(`/series/${seriesId}`, { state: { title } })
+
+      navigate(`/words?forSeries=${series.id}&seriesTitle=${encodeURIComponent(title.trim())}&studentId=${studentId}`)
     } catch (err) {
       setError(err.message)
       setSubmitting(false)
     }
-  }
-
-  const availableWords = words.filter(
-    (w) => !selected.some((s) => s.id === w.id) && w.text.toLowerCase().includes(search.toLowerCase())
-  )
-
-  if (step === 'title') {
-    return (
-      <div className="page">
-        <p className="breadcrumb">
-          <Link to="/series">← Entraînements</Link>
-        </p>
-        <h2>Nouvel entraînement</h2>
-        <form className="word-create-form" onSubmit={handleCreateTitle}>
-          <label htmlFor="series-title" className="word-input-label">
-            Titre de l’entraînement
-          </label>
-          <input
-            id="series-title"
-            type="text"
-            className="word-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          {error && <p className="form-error">{error}</p>}
-          <button type="submit" className="btn btn-toggle active" disabled={submitting}>
-            {submitting ? 'Création…' : 'Créer et choisir les mots'}
-          </button>
-        </form>
-      </div>
-    )
   }
 
   return (
     <div className="page">
       <p className="breadcrumb">
-        <Link to="/series">← Entraînements</Link>
+        <Link to={`/training/${studentId}`}>← Entraînements</Link>
       </p>
-      <h2>{title}</h2>
-      <p className="page-subtitle">Choisis les mots à ajouter à cet entraînement, dans l’ordre souhaité.</p>
-
-      {error && <p className="form-error">{error}</p>}
-
-      <form className="inline-form" onSubmit={handleQuickAddWord}>
+      <h2>Nouvel entraînement</h2>
+      <form className="word-create-form" onSubmit={handleCreateTitle}>
+        <label htmlFor="series-title" className="word-input-label">
+          Titre de l’entraînement
+        </label>
         <input
+          id="series-title"
           type="text"
           className="word-input"
-          placeholder="Mot sans illustration (ex : pour une simple dictée)"
-          value={quickWordText}
-          onChange={(e) => setQuickWordText(e.target.value)}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+          required
         />
-        <button type="submit" className="btn btn-secondary" disabled={quickWordSubmitting}>
-          {quickWordSubmitting ? 'Ajout…' : '➕ Ajouter sans illustration'}
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="btn btn-toggle active" disabled={submitting}>
+          {submitting ? 'Création…' : prefillWordIds ? 'Créer' : 'Créer et choisir les mots'}
         </button>
       </form>
-
-      <div className="word-picker">
-        <div className="word-picker-col">
-          <h3>Banque de mots</h3>
-          <input
-            type="text"
-            className="word-input"
-            placeholder="Rechercher un mot…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {wordsLoading && <p>Chargement…</p>}
-          <ul className="picker-list">
-            {availableWords.map((word) => (
-              <li key={word.id}>
-                <button type="button" className="picker-item" onClick={() => addWord(word)}>
-                  ➕ {word.text}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="word-picker-col">
-          <h3>Mots sélectionnés ({selected.length})</h3>
-          {selected.length === 0 && <p className="empty-hint">Aucun mot choisi pour l’instant.</p>}
-          <ul className="picker-list">
-            {selected.map((word, i) => (
-              <li key={word.id} className="picker-item picker-item-selected">
-                <div className="picker-item-row">
-                  <span className="picker-order">{i + 1}</span>
-                  <span className="picker-text">{word.text}</span>
-                  <span className="picker-actions">
-                    <button type="button" className="btn btn-chip" onClick={() => moveWord(i, -1)} disabled={i === 0}>
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-chip"
-                      onClick={() => moveWord(i, 1)}
-                      disabled={i === selected.length - 1}
-                    >
-                      ↓
-                    </button>
-                    <button type="button" className="btn btn-danger" onClick={() => removeWord(word.id)}>
-                      ✖️
-                    </button>
-                  </span>
-                </div>
-                {sentenceFieldIds.has(word.id) && (
-                  <label className="quick-word-sentence-label">
-                    ⚠️ Aucune phrase pour ce mot — la passation de test affichera juste « Écris le mot : » sans elle
-                    <input
-                      type="text"
-                      className="quick-word-sentence-input"
-                      placeholder="ex : La ___ est posée sur la table."
-                      value={word.sentence || ''}
-                      onChange={(e) => updateSelectedSentence(word.id, e.target.value)}
-                      onBlur={() => saveSelectedSentence(word)}
-                    />
-                  </label>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-
-      <button type="button" className="btn btn-toggle active" onClick={handleFinish} disabled={submitting}>
-        {submitting ? 'Enregistrement…' : '✅ Valider l’entraînement'}
-      </button>
     </div>
   )
 }

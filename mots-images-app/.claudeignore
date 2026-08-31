@@ -1,0 +1,17 @@
+# Dépendances — jamais utiles à Claude Code
+node_modules/
+**/node_modules/
+
+# Fichiers de build/sortie
+dist/
+build/
+
+# Secrets — à ne jamais exposer
+.env
+.env.local
+*.pem
+*.key
+
+# Logs et fichiers temporaires
+*.log
+.DS_Store
