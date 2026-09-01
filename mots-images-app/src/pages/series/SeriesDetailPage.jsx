@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { getSeries, getSeriesDetail, removeWordFromSeries, updateSeriesTitle } from '../../api/series'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
@@ -43,7 +43,12 @@ export default function SeriesDetailPage() {
   // rather than a permanent "Ajouter des mots" button sitting next to the
   // pencil at all times.
   const [editingWords, setEditingWords] = useState(false)
-  const [removingWordId, setRemovingWordId] = useState(null)
+  // A word disappears from the grid the instant its trash icon is tapped —
+  // no popup interrupting the flow — with a few seconds to undo via a
+  // toast, the same soft pattern already used for deleting a word from the
+  // bank entirely (see WordsBankPage's handleDeleteWord).
+  const [pendingRemoveIds, setPendingRemoveIds] = useState(() => new Set())
+  const removeTimers = useRef(new Map())
 
   useEffect(() => {
     let cancelled = false
@@ -100,18 +105,48 @@ export default function SeriesDetailPage() {
     }
   }
 
-  const handleRemoveWord = async (word) => {
-    if (!window.confirm(`Retirer « ${word.text} » de cet entraînement ?`)) return
-    setRemovingWordId(word.id)
-    setError(null)
-    try {
-      await removeWordFromSeries(seriesId, word.id)
-      setWords((prev) => prev.filter((w) => w.id !== word.id))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setRemovingWordId(null)
+  const REMOVE_UNDO_DELAY_MS = 6000
+
+  // No confirmation dialog: the card leaves the grid immediately, and
+  // "Annuler" in the toast below is the safety net for the length of
+  // REMOVE_UNDO_DELAY_MS, instead of a native popup interrupting the flow
+  // for what's usually a quick correction while curating an entraînement.
+  const handleRemoveWord = (word) => {
+    setPendingRemoveIds((prev) => new Set(prev).add(word.id))
+    const timer = setTimeout(() => {
+      removeTimers.current.delete(word.id)
+      removeWordFromSeries(seriesId, word.id)
+        .then(() => {
+          setWords((prev) => prev.filter((w) => w.id !== word.id))
+          setPendingRemoveIds((prev) => {
+            const next = new Set(prev)
+            next.delete(word.id)
+            return next
+          })
+        })
+        .catch((err) => {
+          setPendingRemoveIds((prev) => {
+            const next = new Set(prev)
+            next.delete(word.id)
+            return next
+          })
+          setError(err.message)
+        })
+    }, REMOVE_UNDO_DELAY_MS)
+    removeTimers.current.set(word.id, timer)
+  }
+
+  const handleUndoRemoveWord = (wordId) => {
+    const timer = removeTimers.current.get(wordId)
+    if (timer) {
+      clearTimeout(timer)
+      removeTimers.current.delete(wordId)
     }
+    setPendingRemoveIds((prev) => {
+      const next = new Set(prev)
+      next.delete(wordId)
+      return next
+    })
   }
 
   return (
@@ -234,27 +269,43 @@ export default function SeriesDetailPage() {
             </Link>
           )}
 
+          {pendingRemoveIds.size > 0 && (
+            <div className="undo-toast-stack">
+              {words
+                .filter((w) => pendingRemoveIds.has(w.id))
+                .map((word) => (
+                  <div key={word.id} className="undo-toast">
+                    <span>« {word.text} » retiré</span>
+                    <button type="button" className="text-link-btn" onClick={() => handleUndoRemoveWord(word.id)}>
+                      Annuler
+                    </button>
+                  </div>
+                ))}
+            </div>
+          )}
+
           {words.length > 0 && (
             <ul className="card-list series-word-list">
-              {words.map((word) => (
-                <li key={word.id} className="series-word-item">
-                  <Link to={`/words/${word.id}${fromSeriesQuery}`} className="word-bank-card-link">
-                    <IllustratedWordPreview text={word.text} zones={word.zones} />
-                  </Link>
-                  {editingWords && (
-                    <button
-                      type="button"
-                      className="icon-btn-danger word-bank-delete-btn"
-                      onClick={() => handleRemoveWord(word)}
-                      disabled={removingWordId === word.id}
-                      aria-label={`Retirer "${word.text}" de cet entraînement`}
-                      title="Retirer de l’entraînement"
-                    >
-                      <TrashIcon size={16} />
-                    </button>
-                  )}
-                </li>
-              ))}
+              {words
+                .filter((word) => !pendingRemoveIds.has(word.id))
+                .map((word) => (
+                  <li key={word.id} className="series-word-item">
+                    <Link to={`/words/${word.id}${fromSeriesQuery}`} className="word-bank-card-link">
+                      <IllustratedWordPreview text={word.text} zones={word.zones} />
+                    </Link>
+                    {editingWords && (
+                      <button
+                        type="button"
+                        className="icon-btn-danger word-bank-delete-btn"
+                        onClick={() => handleRemoveWord(word)}
+                        aria-label={`Retirer "${word.text}" de cet entraînement`}
+                        title="Retirer de l’entraînement"
+                      >
+                        <TrashIcon size={16} />
+                      </button>
+                    )}
+                  </li>
+                ))}
             </ul>
           )}
         </>

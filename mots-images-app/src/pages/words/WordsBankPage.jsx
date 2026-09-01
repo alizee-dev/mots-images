@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createWord, getWords, removeWordFromBank, submitWordForCommonBank } from '../../api/words'
-import { addWordsToSeries } from '../../api/series'
+import { addWordsToSeries, getSeriesDetail } from '../../api/series'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
 import PrintWordsButton from '../../components/PrintWordsButton'
 import TrashIcon from '../../components/TrashIcon'
@@ -9,6 +9,7 @@ import TargetIcon from '../../components/TargetIcon'
 import CheckIcon from '../../components/CheckIcon'
 import ShareIcon from '../../components/ShareIcon'
 import ClockIcon from '../../components/ClockIcon'
+import SelectIcon from '../../components/SelectIcon'
 
 // How long a single-word delete stays undoable before the actual API call
 // fires — no confirmation popup at all: the card leaves the grid right away,
@@ -56,7 +57,10 @@ export default function WordsBankPage() {
   const [illustrating, setIllustrating] = useState(false)
   // 'mine' → GET /words (the parent's own bank). 'all' → GET
   // /words?includeCommonWords=true, adding words shared by other teachers.
-  const [scope, setScope] = useState('mine')
+  // null only until the initial default below resolves — never used in
+  // addMode, which always merges both regardless (see loadWords), so the
+  // toggle this drives is hidden there anyway.
+  const [scope, setScope] = useState(addMode ? 'all' : null)
 
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -85,20 +89,66 @@ export default function WordsBankPage() {
   const isMountedRef = useRef(true)
 
   const loadWords = useCallback(() => {
+    if (scope == null) return undefined
     setLoading(true)
     setError(null)
-    return getWords({ includeCommonWords: scope === 'all' })
+    // addMode always merges both — a parent building an entraînement needs
+    // to actually find something to pick, so there's no reason to hide the
+    // common bank behind a toggle that isn't even shown there.
+    return getWords({ includeCommonWords: addMode || scope === 'all' })
       .then((list) => {
         setWords([...list].sort((a, b) => a.text.localeCompare(b.text, 'fr')))
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [scope])
+  }, [scope, addMode])
+
+  // Decides the initial scope once, only when the toggle is actually shown
+  // (never in addMode — scope starts resolved to 'all' above and this is
+  // skipped): defaults to the parent's own words if they have any,
+  // otherwise the common bank. A brand new account's own bank is always
+  // empty, so landing there first would just look broken.
+  useEffect(() => {
+    if (addMode) return undefined
+    let cancelled = false
+    getWords({ includeCommonWords: false })
+      .then((mine) => {
+        if (!cancelled) setScope(mine.length > 0 ? 'mine' : 'all')
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err.message)
+          setScope('mine')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     loadWords()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope])
+
+  // addMode's own bookkeeping: whatever this entraînement already contains
+  // — including words added in an earlier visit, or the one just added via
+  // handleIllustrateClick right before landing back here — shows as
+  // checked from the start, rather than only whatever got tapped during
+  // this particular visit.
+  useEffect(() => {
+    if (!addMode) return undefined
+    let cancelled = false
+    getSeriesDetail(forSeriesId)
+      .then((rows) => {
+        if (!cancelled) setAddedIds(new Set(rows.map((r) => r.id)))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [addMode, forSeriesId])
 
   useEffect(
     () => () => {
@@ -143,32 +193,30 @@ export default function WordsBankPage() {
   // taking the parent straight to the letter-picking step (see WordEditorPage's
   // autoAi query param), instead of retyping the same word on a second
   // screen. An empty field just opens a blank "Illustrer un mot" form. In
-  // addMode, the new word is also added to the entraînement right away, and
-  // fromSeriesId/fromSeriesTitle tag along so the editor's own breadcrumb
-  // brings the parent back here once they're done illustrating it.
+  // addMode, fromSeriesId/fromSeriesTitle/fromStudentId tag along so the
+  // editor knows to bring the parent back to this exact add-words screen —
+  // not just the plain bank — once they're done illustrating it, and to
+  // offer "Ajouter à…" there instead of the usual save (see
+  // WordEditorPage's handleAddToSeries) — the word isn't linked to the
+  // entraînement yet at this point, only once that's actually confirmed.
   const handleIllustrateClick = async () => {
     const text = search.trim()
+    const fromParams = new URLSearchParams()
+    if (addMode) {
+      fromParams.set('fromSeriesId', forSeriesId)
+      if (forSeriesTitle) fromParams.set('fromSeriesTitle', forSeriesTitle)
+      if (forStudentId) fromParams.set('fromStudentId', forStudentId)
+    }
     if (!text) {
-      navigate(
-        addMode
-          ? `/words/new?fromSeriesId=${encodeURIComponent(forSeriesId)}&fromSeriesTitle=${encodeURIComponent(forSeriesTitle)}`
-          : '/words/new'
-      )
+      navigate(addMode ? `/words/new?${fromParams.toString()}` : '/words/new')
       return
     }
     setIllustrating(true)
     setError(null)
     try {
       const word = await createWord(text, '')
-      if (addMode) {
-        await addWordsToSeries(forSeriesId, [word.id]).catch(() => {})
-      }
-      const params = new URLSearchParams({ autoAi: '1' })
-      if (addMode) {
-        params.set('fromSeriesId', forSeriesId)
-        if (forSeriesTitle) params.set('fromSeriesTitle', forSeriesTitle)
-      }
-      navigate(`/words/${word.id}?${params.toString()}`)
+      fromParams.set('autoAi', '1')
+      navigate(`/words/${word.id}?${fromParams.toString()}`)
     } catch (err) {
       setError(err.message)
       setIllustrating(false)
@@ -357,7 +405,7 @@ export default function WordsBankPage() {
       <div className="inline-form">
         <input
           type="text"
-          className="word-input"
+          className="word-input word-bank-search-input"
           placeholder="Rechercher ou illustrer un mot…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -382,19 +430,28 @@ export default function WordsBankPage() {
               className={`btn btn-tab ${scope === 'mine' ? 'active' : ''}`}
               onClick={() => setScope('mine')}
             >
-              Mes mots illustrés
+              <span className="scope-toggle-label-full">Mes mots illustrés</span>
+              <span className="scope-toggle-label-short">Mes mots</span>
             </button>
             <button
               type="button"
               className={`btn btn-tab ${scope === 'all' ? 'active' : ''}`}
               onClick={() => setScope('all')}
             >
-              Banque commune
+              <span className="scope-toggle-label-full">Banque commune</span>
+              <span className="scope-toggle-label-short">Banque</span>
             </button>
           </div>
           {!selectionMode && (
-            <button type="button" className="btn btn-secondary" onClick={toggleSelectionMode}>
-              Sélectionner
+            <button
+              type="button"
+              className="btn btn-secondary word-bank-select-btn"
+              onClick={toggleSelectionMode}
+              aria-label="Sélectionner"
+              title="Sélectionner"
+            >
+              <SelectIcon size={18} />
+              <span className="scope-toggle-label-full">Sélectionner</span>
             </button>
           )}
         </div>

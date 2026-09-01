@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createStudent, getMyStudents } from '../api/students'
+import { getWords } from '../api/words'
+import { acknowledgeCommonWordId, loadAcknowledgedCommonWordIds } from '../commonWordNotices'
 import mascotNeutral from '../assets/mascots/mascotte_neutre.png'
 import PlusIcon from '../components/PlusIcon'
+import CloseIcon from '../components/CloseIcon'
+import TargetIcon from '../components/TargetIcon'
 
 // The dashboard used to stack three overlapping ways to reach the same
 // handful of destinations (a header button, two hero buttons, a row of
@@ -24,11 +28,31 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState(null)
 
+  // Words this parent submitted that are now common but haven't been
+  // acknowledged yet (see commonWordNotices.js) — checked once per visit
+  // here, so it surfaces whenever the parent next opens the app, even if
+  // they were logged out at the exact moment an admin approved it.
+  const [commonWordNotices, setCommonWordNotices] = useState([])
+
   useEffect(() => {
     getMyStudents()
       .then(setStudents)
       .catch(() => setLoadError(true))
   }, [])
+
+  useEffect(() => {
+    getWords()
+      .then((words) => {
+        const acknowledged = loadAcknowledgedCommonWordIds()
+        setCommonWordNotices(words.filter((w) => w.status === 'common' && !acknowledged.has(w.id)))
+      })
+      .catch(() => {})
+  }, [])
+
+  const dismissCommonWordNotice = (wordId) => {
+    acknowledgeCommonWordId(wordId)
+    setCommonWordNotices((prev) => prev.filter((w) => w.id !== wordId))
+  }
 
   const handleCreateChild = async (e) => {
     e.preventDefault()
@@ -48,18 +72,13 @@ export default function DashboardPage() {
   }
 
   const hasNoChildren = !loadError && students !== null && students.length === 0
-  const firstChildName = students?.[0]?.name
 
   const message = hasNoChildren
     ? 'Commençons par ajouter ton premier enfant !'
-    : firstChildName
-      ? `L’entraînement de ${firstChildName} t’attend !`
-      : 'Par quoi on commence aujourd’hui ?'
+    : 'Par quoi commence-t-on aujourd’hui ?'
 
   return (
     <div className="dashboard">
-      <h2>Tableau de bord</h2>
-
       <div className="dashboard-mascot-block">
         <div className="dashboard-mascot-glow" aria-hidden="true" />
         <img src={mascotNeutral} alt="" className="dashboard-mascot" />
@@ -89,12 +108,39 @@ export default function DashboardPage() {
             </button>
           </form>
         ) : (
-          <Link to="/words/new" className="btn btn-toggle active dashboard-cta">
-            ✨ Illustrer un mot
-          </Link>
+          <div className="dashboard-cta-row">
+            <Link to="/words/new" className="btn btn-toggle active">
+              ✨ Illustrer un mot
+            </Link>
+            <Link to="/training" className="btn btn-secondary">
+              <TargetIcon size={18} />
+              S’entraîner
+            </Link>
+          </div>
         )}
         {createError && <p className="form-error">{createError}</p>}
       </div>
+
+      {commonWordNotices.length > 0 && (
+        <div className="common-word-notice-stack no-print">
+          {commonWordNotices.map((word) => (
+            <div key={word.id} className="common-word-notice">
+              <span>
+                Merci pour ta contribution ! Ton mot « {word.text} » a été ajouté à la banque commune.
+              </span>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => dismissCommonWordNotice(word.id)}
+                aria-label="Fermer"
+                title="Fermer"
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

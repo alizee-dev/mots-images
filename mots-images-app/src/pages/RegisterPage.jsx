@@ -34,7 +34,7 @@ export default function RegisterPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Mots-images</h1>
+        <h1>Totémots</h1>
         <p className="login-subtitle">Créer un compte enseignant</p>
 
         <label htmlFor="register-name" className="word-input-label">

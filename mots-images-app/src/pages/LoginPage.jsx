@@ -34,7 +34,7 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
-        <h1>Mots-images</h1>
+        <h1>Totémots</h1>
         <p className="login-subtitle">Connexion enseignant</p>
 
         {justRegistered && <p className="form-success">Compte créé, tu peux te connecter.</p>}

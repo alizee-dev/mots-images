@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getMyStudents } from '../../api/students'
 import { getAllAssignmentsByStudent } from '../../api/assignments'
+import { archiveSeries } from '../../api/series'
 import PlusIcon from '../../components/PlusIcon'
 import TargetIcon from '../../components/TargetIcon'
+import ConfirmDeleteButton from '../../components/ConfirmDeleteButton'
 
 // One child's entraînements — every one ever created for them, whether or
 // not its one-time évaluation has already been used (see
@@ -15,6 +17,7 @@ export default function StudentTrainingListPage() {
   const [trainings, setTrainings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [archivingId, setArchivingId] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -39,6 +42,22 @@ export default function StudentTrainingListPage() {
     }
   }, [studentId])
 
+  // A tap arms the trash icon (see ConfirmDeleteButton) rather than
+  // popping a native confirm() — deliberate enough for something this
+  // hard to walk back, without breaking out of the app's own UI to ask.
+  const handleDelete = async (training) => {
+    setArchivingId(training.id)
+    setError(null)
+    try {
+      await archiveSeries(training.series_id)
+      setTrainings((prev) => prev.filter((t) => t.id !== training.id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setArchivingId(null)
+    }
+  }
+
   return (
     <div className="page">
       <p className="breadcrumb">
@@ -62,7 +81,7 @@ export default function StudentTrainingListPage() {
       {!loading && trainings.length > 0 && (
         <ul className="card-list">
           {trainings.map((t) => (
-            <li key={t.id}>
+            <li key={t.id} className="card-list-row">
               <Link
                 to={`/series/${t.series_id}`}
                 state={{ title: t.title, studentId }}
@@ -74,6 +93,11 @@ export default function StudentTrainingListPage() {
                 </span>
                 <span className="card-list-meta">{t.count} mot(s)</span>
               </Link>
+              <ConfirmDeleteButton
+                onConfirm={() => handleDelete(t)}
+                disabled={archivingId === t.id}
+                label={`Supprimer définitivement l'entraînement "${t.title}"`}
+              />
             </li>
           ))}
         </ul>

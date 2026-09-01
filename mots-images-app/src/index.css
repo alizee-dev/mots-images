@@ -166,6 +166,30 @@ h3 {
   color: white;
 }
 
+@media (max-width: 640px) {
+  /* Icon only on a narrow screen — 4 destinations with full labels forced
+     2 rows of 2, pushing every screen's actual content further down before
+     it's even visible. The label stays in the DOM (aria-label isn't
+     enough on its own for a visible tooltip on tap-and-hold) — it's simply
+     not painted here — so nothing needs to change in Layout.jsx. */
+  .app-nav {
+    flex-wrap: nowrap;
+  }
+  .nav-link {
+    flex: 1 1 0;
+    justify-content: center;
+    /* More vertical room than the icon alone strictly needs — a taller,
+       more comfortable tap target (closer to the ~44px usually
+       recommended), and a steadier, more deliberate-looking pill than the
+       thinner one this used to be. */
+    padding: var(--space-3) var(--space-3);
+    gap: 0;
+  }
+  .nav-link span {
+    display: none;
+  }
+}
+
 .app-header-actions {
   display: flex;
   gap: 12px;
@@ -983,8 +1007,14 @@ h3 {
   color: var(--color-primary-dark);
 }
 
-.dashboard-cta {
-  align-self: center;
+/* Side-by-side pair of equally-weighted actions under the mascotte's
+   bubble — wraps to a stacked column rather than shrinking illegibly on a
+   narrow phone. */
+.dashboard-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
 }
 
 /* Card lists (students, words, series) */
@@ -1012,16 +1042,7 @@ h3 {
   border-color: var(--color-primary);
 }
 
-/* A card-list-item whose leading text is actually an icon (ChildIcon,
-   TargetIcon, EvaluationIcon…) rather than an emoji character — needs an
-   explicit flex row to align the two, unlike plain text content. */
-.card-list-item-icon {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-/* Same idea, but for just the leading title span inside a
+/* For the leading title span inside a
    .card-list-item-row (which already has its own trailing meta span) —
    inline-flex so it doesn't claim the whole row's width. */
 .card-list-item-title {
@@ -1069,6 +1090,14 @@ h3 {
 .icon-btn-danger:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ConfirmDeleteButton's armed (✓ / ✕) state — replaces the single trash
+   icon in place, same footprint either way. */
+.confirm-delete-armed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .card-list-item-row {
@@ -1421,6 +1450,38 @@ h3 {
   height: 76px;
 }
 
+/* "Your word was approved" notices (see DashboardPage) — fixed to the
+   bottom like the selection toolbar, but stacked as independent dismissible
+   cards rather than one bar, since each is its own notice about a
+   different word. */
+.common-word-notice-stack {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.common-word-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 440px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  font-weight: 600;
+}
+
 .word-chain-edit-wrap {
   position: relative;
 }
@@ -1622,6 +1683,12 @@ h3 {
      these same dimensions, so this shouldn't ever need to clip anything —
      kept purely as a defensive fallback, not the sizing mechanism itself. */
   overflow: hidden;
+  /* Always a static preview (IllustratedWordPreview hardcodes
+     interactive={false}) — without this, the Konva canvas underneath
+     swallows the click before it can bubble up to whichever button/link
+     is meant to handle it (a card's own select button, in the word bank's
+     selection and add-to-entraînement modes). */
+  pointer-events: none;
 }
 
 .word-bank-card-link {
@@ -1757,6 +1824,29 @@ h3 {
   }
 }
 
+/* Admin-only: removing a word from the common bank, on the "Banque
+   commune" scope — same hover-reveal corner treatment as the regular
+   delete icon (opposite corner, since both never show at once: this only
+   appears for scope "all", that one only for "mine"). */
+.word-bank-admin-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  opacity: 0;
+}
+
+.word-bank-item:hover .word-bank-admin-remove-btn,
+.word-bank-admin-remove-btn:focus-within {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .word-bank-admin-remove-btn {
+    opacity: 0.85;
+  }
+}
+
 .word-bank-status-icon {
   position: absolute;
   top: 8px;
@@ -1843,6 +1933,52 @@ h3 {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* Both labels live in the DOM at all times — only one is painted, per
+   breakpoint — rather than swapping text via JS. */
+.scope-toggle-label-short {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .scope-toggle-label-full {
+    display: none;
+  }
+  .scope-toggle-label-short {
+    display: inline;
+  }
+}
+
+@media (max-width: 640px) {
+  /* justify-content: space-between only has an effect when both items
+     share a line — once "Sélectionner" wraps onto its own line under a
+     narrow scope-toggle, it has nothing left to space against and falls
+     back to the start of that line. margin-left: auto keeps it pinned to
+     the right regardless of which line it ends up sharing. */
+  .word-bank-select-btn {
+    margin-left: auto;
+    /* Icon only here (see .scope-toggle-label-full above) — the same
+       generous padding sized for "Sélectionner" as text would leave it
+       oddly wide for a bare icon, and the extra width is exactly what
+       was pushing it off the scope-toggle's row in the first place. */
+    padding: var(--space-2) var(--space-3);
+    gap: 0;
+  }
+
+  /* At the base 2rem (and even at .word-input's own 1.3rem mobile
+     override), the search placeholder ("Rechercher ou illustrer un
+     mot…") overflows a phone-width input before it finishes rendering —
+     the compound selector outweighs that plain .word-input rule
+     regardless of source order. Its flex-basis (200px, from the generic
+     .inline-form .word-input rule) is also more than a phone screen can
+     give it alongside a sibling button, even once min-width:0 lets it
+     shrink below that — starting it smaller here is what actually keeps
+     "Illustrer" on the same row instead of wrapping under it. */
+  .word-input.word-bank-search-input {
+    font-size: 0.95rem;
+    flex-basis: 100px;
+  }
 }
 
 /* Print layout picker (word bank "Imprimer") */

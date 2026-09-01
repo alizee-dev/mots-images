@@ -50,7 +50,7 @@ export default function Layout() {
           <div className="app-header-top">
             <h1>
               <NavLink to="/" className="app-logo-link">
-                Mots-images
+                Totémots
               </NavLink>
             </h1>
             <div className="app-header-actions">
@@ -75,20 +75,44 @@ export default function Layout() {
               to day — material and the two activities built on it first,
               the child's own record last, since that one is consulted more
               occasionally (a check-in on progress) than acted on. */}
+          {/* aria-label/title on each, alongside the visible label — the
+              label text is hidden (not removed from the DOM) on a narrow
+              screen (see .nav-link in index.css), so the accessible name
+              still needs a source that survives that. */}
           <nav className="app-nav">
-            <NavLink to="/words" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <NavLink
+              to="/words"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              aria-label="Banque de mots"
+              title="Banque de mots"
+            >
               <ImageIcon size={20} />
               <span>Banque de mots</span>
             </NavLink>
-            <NavLink to="/training" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <NavLink
+              to="/training"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              aria-label="Entraînements"
+              title="Entraînements"
+            >
               <TargetIcon size={20} />
               <span>Entraînements</span>
             </NavLink>
-            <NavLink to="/evaluations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <NavLink
+              to="/evaluations"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              aria-label="Évaluations"
+              title="Évaluations"
+            >
               <EvaluationIcon size={20} />
               <span>Évaluations</span>
             </NavLink>
-            <NavLink to="/students" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <NavLink
+              to="/students"
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              aria-label="Enfants"
+              title="Enfants"
+            >
               <ChildIcon size={20} />
               <span>Enfants</span>
             </NavLink>

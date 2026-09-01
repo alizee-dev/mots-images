@@ -6,6 +6,7 @@ import IllustrationEditor from '../../components/IllustrationEditor'
 import PrintWordsButton from '../../components/PrintWordsButton'
 import SaveIcon from '../../components/SaveIcon'
 import CloseIcon from '../../components/CloseIcon'
+import PlusIcon from '../../components/PlusIcon'
 import { createWord, generateWordIllustration, getWords, updateWord } from '../../api/words'
 import { addWordsToSeries } from '../../api/series'
 import {
@@ -61,6 +62,10 @@ export default function WordEditorPage() {
   const fromSeries = fromSeriesId
     ? { seriesId: fromSeriesId, title: searchParams.get('fromSeriesTitle') || null }
     : null
+  // Only meaningful alongside fromSeriesId — carried through so saving can
+  // return to the exact add-words screen for this entraînement (see
+  // handleSaveWord below), not just the plain bank.
+  const fromStudentId = searchParams.get('fromStudentId')
   // Set by both word-creation entry points — the bank's "✨ Illustrer" button
   // (which creates the word itself, see WordsBankPage) and this page's own
   // creation form below — so a parent lands straight on the letter-picking
@@ -169,29 +174,71 @@ export default function WordEditorPage() {
       (sentence !== savedSnapshot.sentence || JSON.stringify(zones) !== JSON.stringify(savedSnapshot.zones))
   )
 
-  // Saving always ends by taking the teacher back to the word bank, where
-  // the word they were just working on is right there — there's nothing
-  // else to do on this page once it's saved. If there's nothing new to
-  // persist, it skips the network round trip and just navigates.
+  // Reached from the "add words to this entraînement" screen — fromStudentId
+  // is only ever set on that one path (see WordsBankPage) — this word isn't
+  // linked to the entraînement yet at this point (see handleCreate /
+  // WordsBankPage's own illustrate action, neither of which links it up
+  // front anymore): only actually joining it is what the "Ajouter à…"
+  // button below does. Printing/generic "Enregistrer" don't apply in this
+  // narrower context, so they're swapped out entirely rather than sitting
+  // next to an action that already covers saving.
+  const isAddingToSeries = Boolean(fromSeriesId && fromStudentId)
+  const returnDestination = isAddingToSeries
+    ? `/words?forSeries=${fromSeriesId}&seriesTitle=${encodeURIComponent(fromSeries?.title || '')}&studentId=${fromStudentId}`
+    : '/words'
+
+  // Shared by every save path below — re-compresses any oversized image as
+  // a safety net (in case it slipped past upload-time compression) and
+  // skips the network round trip entirely when there's nothing new.
+  const persistIfNeeded = async () => {
+    if (!hasUnsavedChanges) return
+    const { zones: compressedZones, changed } = await ensureZonesImagesAreCompressed(zones, sentence)
+    if (changed) setZones(compressedZones)
+    await updateWord(wordId, sentence, compressedZones)
+  }
+
   const handleSaveWord = async () => {
-    if (!hasUnsavedChanges) {
-      navigate('/words')
-      return
-    }
     setSaving(true)
     setSaveError(null)
     try {
-      // A safety net for any image that ended up in this word before
-      // upload-time compression existed (or from any other path that
-      // skipped it) — re-compresses anything still oversized right before
-      // sending, so saving never depends on remembering to re-upload it.
-      const { zones: compressedZones, changed } = await ensureZonesImagesAreCompressed(zones, sentence)
-      if (changed) setZones(compressedZones)
-      await updateWord(wordId, sentence, compressedZones)
-      navigate('/words')
+      await persistIfNeeded()
+      navigate(returnDestination)
     } catch (err) {
       setSaveError(err.message)
     } finally {
+      setSaving(false)
+    }
+  }
+
+  // The primary action in the "add to this entraînement" context: saves
+  // the illustration (if anything changed) and only now actually links the
+  // word to the entraînement, then returns to that screen.
+  const handleAddToSeries = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await persistIfNeeded()
+      await addWordsToSeries(fromSeriesId, [wordId])
+      navigate(returnDestination)
+    } catch (err) {
+      setSaveError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // The breadcrumb's escape hatch in that same context: keep the
+  // illustration in the general bank, but don't join it to the
+  // entraînement — still needs to persist it first (a plain <Link> here
+  // would silently drop an unsaved AI choice).
+  const handleBackWithoutAdding = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await persistIfNeeded()
+      navigate(`/series/${fromSeriesId}`, { state: { title: fromSeries?.title, studentId: fromStudentId } })
+    } catch (err) {
+      setSaveError(err.message)
       setSaving(false)
     }
   }
@@ -219,18 +266,16 @@ export default function WordEditorPage() {
     setCreationError(null)
     try {
       const word = await createWord(text, '')
-      // Arriving here from a série's own "✨ Générer un nouveau mot" entry
-      // point (see SeriesDetailPage) means the word is meant to land in
-      // that entraînement directly, not just the general bank — best
-      // effort: a failure here shouldn't block the parent from continuing
-      // to illustrate the word they just created.
-      if (fromSeriesId) {
-        await addWordsToSeries(fromSeriesId, [word.id]).catch(() => {})
-      }
+      // Arriving here from the "add words to this entraînement" screen
+      // (see WordsBankPage's addMode) carries that context along, but
+      // doesn't join the word to the entraînement yet — only actually
+      // choosing an illustration and confirming (see handleAddToSeries)
+      // does that now.
       const params = new URLSearchParams({ autoAi: '1' })
       if (fromSeriesId) {
         params.set('fromSeriesId', fromSeriesId)
         if (fromSeries?.title) params.set('fromSeriesTitle', fromSeries.title)
+        if (fromStudentId) params.set('fromStudentId', fromStudentId)
       }
       navigate(`/words/${word.id}?${params.toString()}`, { replace: true })
     } catch (err) {
@@ -398,36 +443,59 @@ export default function WordEditorPage() {
   // one reserved-index zone (see wordGeometry.AI_WHOLE_WORD_LETTER_INDEX)
   // instead of attaching to a real letterIndex — any previous per-letter
   // zones would never be visible again underneath it anyway.
-  const applyAiProposal = useCallback((proposal) => {
-    const dataUrl = `data:image/png;base64,${proposal.image}`
-    const probe = new window.Image()
-    probe.onload = () => {
-      const image = {
-        id: uuid(),
-        type: 'image',
-        dataUrl,
-        aspect: probe.height / probe.width,
-        xFrac: 0.5,
-        yFrac: 0.5,
-        widthFrac: 1,
-        rotation: 0,
-        opacity: 1,
-        behind: false,
-        cropRect: DEFAULT_CROP,
-        cropPath: null,
-      }
-      setZones([
-        {
+  //
+  // Persisted immediately, right here — choosing a proposal is the one
+  // deliberate act in this whole flow, and waiting for a separate later
+  // "Enregistrer" left that choice one stray tap (the breadcrumb, "Ajouter
+  // à…" without saving first, anything else) away from being silently
+  // discarded.
+  const applyAiProposal = useCallback(
+    (proposal) => {
+      const dataUrl = `data:image/png;base64,${proposal.image}`
+      const probe = new window.Image()
+      probe.onload = async () => {
+        const image = {
           id: uuid(),
-          letterIndex: AI_WHOLE_WORD_LETTER_INDEX,
-          letterColor: null,
-          illustration: { strokes: [], stickers: [], images: [image] },
-        },
-      ])
-      resetAiFlow()
-    }
-    probe.src = dataUrl
-  }, [resetAiFlow])
+          type: 'image',
+          dataUrl,
+          aspect: probe.height / probe.width,
+          xFrac: 0.5,
+          yFrac: 0.5,
+          widthFrac: 1,
+          rotation: 0,
+          opacity: 1,
+          behind: false,
+          cropRect: DEFAULT_CROP,
+          cropPath: null,
+        }
+        const newZones = [
+          {
+            id: uuid(),
+            letterIndex: AI_WHOLE_WORD_LETTER_INDEX,
+            letterColor: null,
+            illustration: { strokes: [], stickers: [], images: [image] },
+          },
+        ]
+        setZones(newZones)
+        resetAiFlow()
+
+        setSaving(true)
+        setSaveError(null)
+        try {
+          const { zones: compressedZones } = await ensureZonesImagesAreCompressed(newZones, sentence)
+          setZones(compressedZones)
+          await updateWord(wordId, sentence, compressedZones)
+          setSavedSnapshot({ sentence, zones: compressedZones })
+        } catch (err) {
+          setSaveError(err.message)
+        } finally {
+          setSaving(false)
+        }
+      }
+      probe.src = dataUrl
+    },
+    [resetAiFlow, wordId, sentence]
+  )
 
   // None of the 3 proposals fit — falls back to the exact same manual
   // editor a normal letter click would open, on the first letter of the
@@ -516,7 +584,13 @@ export default function WordEditorPage() {
 
   return (
     <div className="page">
-      {fromSeries ? (
+      {isAddingToSeries ? (
+        <p className="breadcrumb">
+          <button type="button" className="text-link-btn" onClick={handleBackWithoutAdding} disabled={saving}>
+            ← Retour à {fromSeries?.title ? `« ${fromSeries.title} »` : 'l’entraînement'}
+          </button>
+        </p>
+      ) : fromSeries ? (
         <p className="breadcrumb">
           <Link to={`/series/${fromSeries.seriesId}`} state={{ title: fromSeries.title }}>
             ← Retour à {fromSeries.title ? `« ${fromSeries.title} »` : 'la série'}
@@ -531,17 +605,39 @@ export default function WordEditorPage() {
         <h2>{wordText}</h2>
         <div className="app-header-actions">
           {saveError && <span className="form-error">{saveError}</span>}
-          <PrintWordsButton words={[{ id: wordId, text: wordText, zones }]} className="btn btn-secondary" />
-          <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
-            {saving ? (
-              'Enregistrement…'
-            ) : (
-              <>
-                <SaveIcon size={18} />
-                Enregistrer
-              </>
-            )}
-          </button>
+          {/* Nothing to act on yet while a letter selection/generation/
+              results choice is in progress — showing "Ajouter à…" (or
+              Imprimer/Enregistrer) before an illustration is actually
+              settled on invites acting on the wrong thing. */}
+          {!aiFlow && (isAddingToSeries ? (
+            // Just illustrating a word for this one entraînement here —
+            // printing and a generic "save" don't apply, only actually
+            // adding it does.
+            <button type="button" className="btn btn-toggle active" onClick={handleAddToSeries} disabled={saving}>
+              {saving ? (
+                'Ajout…'
+              ) : (
+                <>
+                  <PlusIcon size={18} />
+                  {`Ajouter à${fromSeries?.title ? ` « ${fromSeries.title} »` : ' l’entraînement'}`}
+                </>
+              )}
+            </button>
+          ) : (
+            <>
+              <PrintWordsButton words={[{ id: wordId, text: wordText, zones }]} className="btn btn-secondary" />
+              <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
+                {saving ? (
+                  'Enregistrement…'
+                ) : (
+                  <>
+                    <SaveIcon size={18} />
+                    Enregistrer
+                  </>
+                )}
+              </button>
+            </>
+          ))}
         </div>
       </div>
 

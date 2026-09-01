@@ -51,7 +51,7 @@ Tokens expire after 24h.
 
 ## Authorization
 
-Every route that targets a specific resource (a word, a series, an assignment, a test session) verifies that the resource actually belongs to the authenticated teacher, not just that the teacher is logged in. A teacher who requests a resource that isn't theirs receives a `403 Forbidden`.
+Every route that targets a specific resource (a word, a series, an assignment, a test session) verifies that the resource actually belongs to the authenticated teacher, not just that the teacher is logged in. A teacher who requests a resource that isn't theirs receives a `403 Forbidden`. Some routes additionally require the authenticated teacher to be an admin (`is_admin = true` on their account). These are marked *(admin only)* in the route documentation below and return `403 Forbidden` for non-admin teachers.
 
 ## Database schema
 
@@ -339,3 +339,4 @@ Returns (403) if the session doesn't belong to the authenticated teacher.
 - **One sentence per word.** Each word has a single fill-in-the-blank sentence, so a word reused across several series/tests always shows the same sentence. A V2 could support several sentences per word (a separate `sentences` table, or multiple columns) with random selection at test time.
 - **No API documentation tool.** Routes are documented here and in a Postman collection. A future improvement would be to generate interactive docs with Swagger/OpenAPI.
 - **`DECIMAL` columns return strings.** PostgreSQL returns `total_score` and `score` as strings (e.g. `"1.5"`), not numbers. Convert with `Number(...)` before doing further math on them if needed.
+- **One test session per assignment (V1).** The application flow doesn't currently allow re-assigning a series to a student who's already been assigned it, so only one test session per (series, student) pair is possible. This is enforced at the application level (`assignStudentsToSeriesController`), not by a database constraint alone. A V2 could allow multiple sessions per assignment (the `test_sessions` table already supports this structurally) if repeated evaluation becomes a need.

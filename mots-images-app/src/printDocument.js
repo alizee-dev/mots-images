@@ -33,7 +33,7 @@ export function buildPrintDocument(cardImageUrls, layoutId) {
 <html>
 <head>
 <meta charset="utf-8" />
-<title>Impression — Mots-images</title>
+<title>Impression — Totémots</title>
 <style>
   @page { size: ${pageSize}; margin: 10mm; }
   * { box-sizing: border-box; }
