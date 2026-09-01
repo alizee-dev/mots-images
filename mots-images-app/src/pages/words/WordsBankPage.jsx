@@ -7,6 +7,8 @@ import PrintWordsButton from '../../components/PrintWordsButton'
 import TrashIcon from '../../components/TrashIcon'
 import TargetIcon from '../../components/TargetIcon'
 import CheckIcon from '../../components/CheckIcon'
+import ShareIcon from '../../components/ShareIcon'
+import ClockIcon from '../../components/ClockIcon'
 
 // How long a single-word delete stays undoable before the actual API call
 // fires — no confirmation popup at all: the card leaves the grid right away,
@@ -475,20 +477,29 @@ export default function WordsBankPage() {
                     </button>
                   )}
                   {/* Only the parent's own, not-yet-common words can be
-                      proposed — a word already shared, or already awaiting
-                      review, just shows where it stands instead. */}
+                      proposed — a word already shared just shows nothing
+                      extra here. A discreet icon either way (never a
+                      full-width banner): the share icon only reveals
+                      itself on hover, same as the delete icon on the
+                      opposite corner; the pending clock stays visible on
+                      its own, since that's status worth seeing at a
+                      glance rather than an action to reach for. */}
                   {scope === 'mine' &&
                     !isCommon &&
                     (isPending ? (
-                      <span className="word-bank-status-badge">En attente de validation</span>
+                      <span className="word-bank-status-icon" title="En attente de validation" aria-label="En attente de validation">
+                        <ClockIcon size={16} />
+                      </span>
                     ) : (
                       <button
                         type="button"
-                        className="btn btn-secondary word-bank-propose-btn"
+                        className="icon-btn word-bank-share-btn"
                         onClick={() => handleProposeToCommonBank(word)}
                         disabled={proposingId === word.id}
+                        aria-label="Proposer à la banque commune"
+                        title="Proposer à la banque commune"
                       >
-                        {proposingId === word.id ? 'Envoi…' : 'Proposer à la banque commune'}
+                        <ShareIcon size={16} />
                       </button>
                     ))}
                 </>

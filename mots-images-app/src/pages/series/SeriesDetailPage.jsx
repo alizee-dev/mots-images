@@ -38,9 +38,11 @@ export default function SeriesDetailPage() {
   const [titleDraft, setTitleDraft] = useState('')
   const [titleSaving, setTitleSaving] = useState(false)
 
-  // Only controls whether each thumbnail shows its remove icon — adding is
-  // its own screen now (see addWordsUrl above).
-  const [removingWords, setRemovingWords] = useState(false)
+  // One pencil toggles both: while on, the "Ajouter des mots" link appears
+  // (see addWordsUrl above) and every thumbnail gets a remove icon —
+  // rather than a permanent "Ajouter des mots" button sitting next to the
+  // pencil at all times.
+  const [editingWords, setEditingWords] = useState(false)
   const [removingWordId, setRemovingWordId] = useState(null)
 
   useEffect(() => {
@@ -212,22 +214,25 @@ export default function SeriesDetailPage() {
             {!fromAssignment && (
               <div className="app-header-actions">
                 <PrintWordsButton words={words} />
-                <Link to={addWordsUrl} className="btn btn-secondary">
-                  <PlusIcon size={18} />
-                  Ajouter des mots
-                </Link>
                 <button
                   type="button"
                   className="icon-btn-edit"
-                  onClick={() => setRemovingWords((v) => !v)}
-                  aria-label={removingWords ? 'Terminer' : 'Retirer des mots'}
-                  title={removingWords ? 'Terminer' : 'Retirer des mots'}
+                  onClick={() => setEditingWords((v) => !v)}
+                  aria-label={editingWords ? 'Terminer' : 'Ajouter ou retirer des mots'}
+                  title={editingWords ? 'Terminer' : 'Ajouter ou retirer des mots'}
                 >
                   <EditIcon />
                 </button>
               </div>
             )}
           </div>
+
+          {editingWords && !fromAssignment && (
+            <Link to={addWordsUrl} className="btn btn-secondary">
+              <PlusIcon size={18} />
+              Ajouter des mots
+            </Link>
+          )}
 
           {words.length > 0 && (
             <ul className="card-list series-word-list">
@@ -236,7 +241,7 @@ export default function SeriesDetailPage() {
                   <Link to={`/words/${word.id}${fromSeriesQuery}`} className="word-bank-card-link">
                     <IllustratedWordPreview text={word.text} zones={word.zones} />
                   </Link>
-                  {removingWords && (
+                  {editingWords && (
                     <button
                       type="button"
                       className="icon-btn-danger word-bank-delete-btn"

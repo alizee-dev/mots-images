@@ -48,9 +48,11 @@ export default function TrainingHubPage() {
       <p className="page-subtitle">Choisis un enfant</p>
       <div className="student-picker">
         {students.map((s) => (
-          <Link key={s.id} to={destinationFor(s.id)} state={location.state} className="btn btn-chip student-picker-item">
-            <ChildIcon size={18} />
-            {s.name}
+          <Link key={s.id} to={destinationFor(s.id)} state={location.state} className="student-picker-item">
+            <span className="student-picker-badge">
+              <ChildIcon size={28} />
+            </span>
+            <span className="student-picker-name">{s.name}</span>
           </Link>
         ))}
       </div>

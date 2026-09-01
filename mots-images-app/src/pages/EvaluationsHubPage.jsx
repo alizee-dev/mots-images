@@ -41,9 +41,11 @@ export default function EvaluationsHubPage() {
       <p className="page-subtitle">Choisis un enfant</p>
       <div className="student-picker">
         {students.map((s) => (
-          <Link key={s.id} to={`/evaluations/${s.id}`} className="btn btn-chip student-picker-item">
-            <ChildIcon size={18} />
-            {s.name}
+          <Link key={s.id} to={`/evaluations/${s.id}`} className="student-picker-item">
+            <span className="student-picker-badge">
+              <ChildIcon size={28} />
+            </span>
+            <span className="student-picker-name">{s.name}</span>
           </Link>
         ))}
       </div>
