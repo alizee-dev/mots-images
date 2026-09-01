@@ -626,16 +626,28 @@ export default function WordEditorPage() {
           ) : (
             <>
               <PrintWordsButton words={[{ id: wordId, text: wordText, zones }]} className="btn btn-secondary" />
-              <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
-                {saving ? (
-                  'Enregistrement…'
-                ) : (
-                  <>
-                    <SaveIcon size={18} />
-                    Enregistrer
-                  </>
-                )}
-              </button>
+              {/* Once an AI whole-word illustration is applied, there's
+                  nothing left to save from here: the illustration itself
+                  already persisted the moment it was chosen (see
+                  applyAiProposal), and this screen has no other editable
+                  field (no sentence input) in that state — the stage isn't
+                  even clickable then (see WordStage's `interactive` prop
+                  above). Showing "Enregistrer" anyway just invited the
+                  impression something was still unsaved. Manual, per-letter
+                  illustration editing (no AI image) still needs it — those
+                  zone edits aren't auto-persisted the way an AI choice is. */}
+              {!aiWholeWordImage && (
+                <button type="button" className="btn btn-toggle active" onClick={handleSaveWord} disabled={saving}>
+                  {saving ? (
+                    'Enregistrement…'
+                  ) : (
+                    <>
+                      <SaveIcon size={18} />
+                      Enregistrer
+                    </>
+                  )}
+                </button>
+              )}
             </>
           ))}
         </div>
