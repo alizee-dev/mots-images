@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createWord, getWords, removeWordFromBank, submitWordForCommonBank } from '../../api/words'
 import { addWordsToSeries, getSeriesDetail } from '../../api/series'
@@ -10,12 +10,8 @@ import CheckIcon from '../../components/CheckIcon'
 import ShareIcon from '../../components/ShareIcon'
 import ClockIcon from '../../components/ClockIcon'
 import SelectIcon from '../../components/SelectIcon'
+import ConfirmDeleteButton from '../../components/ConfirmDeleteButton'
 
-// How long a single-word delete stays undoable before the actual API call
-// fires — no confirmation popup at all: the card leaves the grid right away,
-// and this is the window during which "Annuler" can still cancel the request
-// entirely rather than reverting an already-sent delete.
-const UNDO_DELAY_MS = 6000
 // How long a bulk-action status message (success or error) stays on screen
 // before clearing itself — unlike the per-word undo toasts above, this is
 // just a status line, not something with its own action window, so it isn't
@@ -80,13 +76,10 @@ export default function WordsBankPage() {
   const [proposedIds, setProposedIds] = useState(() => new Set())
   const [proposingId, setProposingId] = useState(null)
 
-  // Words optimistically hidden from the grid while their undo window is
-  // still open. The word itself stays in `words` until the delete actually
-  // goes through, so undoing is just letting it reappear — no snapshot or
-  // re-insertion bookkeeping needed.
-  const [pendingDeleteIds, setPendingDeleteIds] = useState(() => new Set())
-  const pendingTimers = useRef(new Map())
-  const isMountedRef = useRef(true)
+  // A single word's own delete, once armed and confirmed via
+  // ConfirmDeleteButton (see below) — tracked just to disable that one
+  // button while its request is in flight.
+  const [deletingId, setDeletingId] = useState(null)
 
   const loadWords = useCallback(() => {
     if (scope == null) return undefined
@@ -150,15 +143,8 @@ export default function WordsBankPage() {
     }
   }, [addMode, forSeriesId])
 
-  useEffect(
-    () => () => {
-      isMountedRef.current = false
-    },
-    []
-  )
-
   // A bulk-action status message is just a status line, not an action
-  // window like the undo toasts below — it clears itself instead of piling
+  // window like the toasts elsewhere — it clears itself instead of piling
   // up on screen if several bulk actions happen one after another.
   useEffect(() => {
     if (!bulkMessage && !bulkError) return
@@ -169,9 +155,7 @@ export default function WordsBankPage() {
     return () => clearTimeout(timer)
   }, [bulkMessage, bulkError])
 
-  const filteredWords = words.filter(
-    (word) => !pendingDeleteIds.has(word.id) && word.text.toLowerCase().startsWith(search.trim().toLowerCase())
-  )
+  const filteredWords = words.filter((word) => word.text.toLowerCase().startsWith(search.trim().toLowerCase()))
 
   // A new search or a scope switch changes what's being paged through, so
   // it should start back at page 1 rather than possibly landing on a now
@@ -200,7 +184,11 @@ export default function WordsBankPage() {
   // WordEditorPage's handleAddToSeries) — the word isn't linked to the
   // entraînement yet at this point, only once that's actually confirmed.
   const handleIllustrateClick = async () => {
-    const text = search.trim()
+    // Words are always stored in uppercase — the letter-illustration
+    // pipeline reads its per-letter/per-range text straight off this same
+    // stored string, so normalizing it once here, at creation, is what
+    // keeps every letter sent to the AI generator uppercase too.
+    const text = search.trim().toUpperCase()
     const fromParams = new URLSearchParams()
     if (addMode) {
       fromParams.set('fromSeriesId', forSeriesId)
@@ -280,46 +268,21 @@ export default function WordsBankPage() {
     toggleSelectionMode()
   }
 
-  // No confirmation dialog: the card disappears immediately and "Annuler"
-  // in the toast below is the safety net, for the length of UNDO_DELAY_MS.
-  const handleDeleteWord = (word) => {
-    setPendingDeleteIds((prev) => new Set(prev).add(word.id))
-    const timer = setTimeout(() => {
-      pendingTimers.current.delete(word.id)
-      removeWordFromBank(word.id)
-        .then(() => {
-          if (!isMountedRef.current) return
-          setWords((prev) => prev.filter((w) => w.id !== word.id))
-          setPendingDeleteIds((prev) => {
-            const next = new Set(prev)
-            next.delete(word.id)
-            return next
-          })
-        })
-        .catch((err) => {
-          if (!isMountedRef.current) return
-          setPendingDeleteIds((prev) => {
-            const next = new Set(prev)
-            next.delete(word.id)
-            return next
-          })
-          setError(err.message)
-        })
-    }, UNDO_DELAY_MS)
-    pendingTimers.current.set(word.id, timer)
-  }
-
-  const handleUndoDelete = (wordId) => {
-    const timer = pendingTimers.current.get(wordId)
-    if (timer) {
-      clearTimeout(timer)
-      pendingTimers.current.delete(wordId)
+  // Same arm-then-confirm safety net as the admin dashboard's own deletes
+  // (see ConfirmDeleteButton) — a tap arms the trash icon into a ✓/✕ pair,
+  // and only the ✓ actually removes the word. Nothing happens until that
+  // second, deliberate tap.
+  const handleConfirmDeleteWord = async (word) => {
+    setDeletingId(word.id)
+    setError(null)
+    try {
+      await removeWordFromBank(word.id)
+      setWords((prev) => prev.filter((w) => w.id !== word.id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeletingId(null)
     }
-    setPendingDeleteIds((prev) => {
-      const next = new Set(prev)
-      next.delete(wordId)
-      return next
-    })
   }
 
   const handleBulkDelete = async () => {
@@ -366,10 +329,6 @@ export default function WordsBankPage() {
     // this selection along the whole way.
     navigate('/training', { state: { prefillWordIds: [...selectedIds] } })
   }
-
-  const pendingWords = [...pendingDeleteIds]
-    .map((id) => words.find((w) => w.id === id))
-    .filter(Boolean)
 
   const seriesLink = `/series/${forSeriesId}`
   const seriesLinkState = { title: forSeriesTitle, studentId: forStudentId || undefined }
@@ -462,19 +421,6 @@ export default function WordsBankPage() {
       {bulkError && <p className="form-error">{bulkError}</p>}
       {loading && <p>Chargement…</p>}
 
-      {pendingWords.length > 0 && (
-        <div className="undo-toast-stack">
-          {pendingWords.map((word) => (
-            <div key={word.id} className="undo-toast">
-              <span>« {word.text} » retiré</span>
-              <button type="button" className="text-link-btn" onClick={() => handleUndoDelete(word.id)}>
-                Annuler
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
       {!loading && !error && filteredWords.length === 0 && (
         <p className="empty-hint">
           {words.length === 0 ? 'Aucun mot dans la banque pour l’instant.' : 'Aucun mot ne correspond à cette recherche.'}
@@ -523,15 +469,12 @@ export default function WordsBankPage() {
                       deletable from here, only words under "Mes mots
                       illustrés" are. */}
                   {scope === 'mine' && (
-                    <button
-                      type="button"
-                      className="icon-btn-danger word-bank-delete-btn"
-                      onClick={() => handleDeleteWord(word)}
-                      aria-label={`Retirer "${word.text}" de la banque de mots`}
-                      title="Retirer de la banque"
-                    >
-                      <TrashIcon size={16} />
-                    </button>
+                    <ConfirmDeleteButton
+                      className="word-bank-delete-btn"
+                      onConfirm={() => handleConfirmDeleteWord(word)}
+                      disabled={deletingId === word.id}
+                      label={`Retirer "${word.text}" de la banque de mots`}
+                    />
                   )}
                   {/* Only the parent's own, not-yet-common words can be
                       proposed — a word already shared just shows nothing

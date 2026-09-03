@@ -18,6 +18,8 @@ const { getLettersPositions } = require("../utils/getLettersPositions")
 
 require("dotenv").config()
 const OpenAI = require("openai").default
+const fs = require("fs")
+const {toFile} = require("openai")
 
 const openai = new OpenAI()
 
@@ -132,7 +134,7 @@ const generateIllustrationController = async (req, res) => {
     const conceptPrompt = buildConceptPrompt(word.text, letters, positionsPrompt)
     const count = await getAiGenerationsCount(teacherId)
 
-    if (count < 250) {
+    if (count < 400) {
       const response = await openai.responses.create({
         model: "gpt-5.6-sol",
         input: conceptPrompt,
@@ -142,8 +144,13 @@ const generateIllustrationController = async (req, res) => {
       console.log(concept)
       const illustrationPrompt = buildIllustrationPrompt(word.text, letters, positionsPrompt, concept)
 
-      const result = await openai.images.generate({
+      const styleReference = await toFile(
+        fs.readFileSync("./assets/palette-reference.png"), "palette-reference.png", { type: "image/png"  }
+      )
+
+      const result = await openai.images.edit({
         model: "gpt-image-2",
+        image: styleReference,
         prompt: illustrationPrompt,
         n: 3,
       })

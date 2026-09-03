@@ -7,7 +7,15 @@ import PrintWordsButton from '../../components/PrintWordsButton'
 import SaveIcon from '../../components/SaveIcon'
 import CloseIcon from '../../components/CloseIcon'
 import PlusIcon from '../../components/PlusIcon'
-import { createWord, generateWordIllustration, getWords, updateWord } from '../../api/words'
+import ShareIcon from '../../components/ShareIcon'
+import {
+  createWord,
+  generateWordIllustration,
+  getWords,
+  removeWordFromBank,
+  submitWordForCommonBank,
+  updateWord,
+} from '../../api/words'
 import { addWordsToSeries } from '../../api/series'
 import {
   AI_WHOLE_WORD_LETTER_INDEX,
@@ -105,6 +113,22 @@ export default function WordEditorPage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
+  // The word's status as last loaded (private/pending/common) — tracked
+  // separately from savedSnapshot since it isn't part of what "Enregistrer"
+  // writes, only what the common-bank proposal below reads and updates.
+  const [wordStatus, setWordStatus] = useState(null)
+  // A one-time, friendly nudge right after picking an AI proposal — "this
+  // illustration turned out nice, want to share it?" — rather than making
+  // a parent go hunt the word back down in a whole bank of illustrated
+  // words just to find the share icon on its card. Only ever offered once
+  // per visit to this screen (see applyAiProposal), and only while the
+  // word is still private — nothing to propose once it's already
+  // pending/common.
+  const [showProposePrompt, setShowProposePrompt] = useState(false)
+  const [proposed, setProposed] = useState(false)
+  const [proposing, setProposing] = useState(false)
+  const [proposeError, setProposeError] = useState(null)
+
   // Printing (see PrintWordsButton in the header) has its own export
   // pipeline and never reads this — light is simply the one card
   // background WordStage renders with here now that there's no preview
@@ -148,6 +172,9 @@ export default function WordEditorPage() {
     setActiveZoneId(null)
     setDraftNewZone(null)
     setClipboard(null)
+    setShowProposePrompt(false)
+    setProposed(false)
+    setProposeError(null)
     getWords()
       .then((words) => {
         const found = words.find((w) => String(w.id) === wordId)
@@ -158,6 +185,7 @@ export default function WordEditorPage() {
         setWordText(found.text)
         setSentence(found.sentence || '')
         setZones(found.zones || [])
+        setWordStatus(found.status || 'private')
         setSavedSnapshot({ sentence: found.sentence || '', zones: found.zones || [] })
         if (autoAi) startAiFlow()
       })
@@ -168,6 +196,68 @@ export default function WordEditorPage() {
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wordId, isNew])
+
+  // `autoAi` is only ever set right after WordsBankPage or this page's own
+  // "Nouveau mot" form creates a bare word purely to jump straight into the
+  // AI letter-picking step (see both handleIllustrateClick and handleCreate)
+  // — never on a word reached any other way. That makes it a reliable
+  // signal, on its own, for "this word exists only because of this one AI
+  // attempt": kept in a ref (rather than read directly in the cleanup
+  // below) so switching from one such attempt straight into another, via
+  // this same component instance, captures each word's own value instead
+  // of whatever the latest one happens to be.
+  const autoAiForCleanupRef = useRef(autoAi)
+  useEffect(() => {
+    autoAiForCleanupRef.current = autoAi
+  }, [autoAi])
+
+  // Mirrors `zones` for the same reason — the cleanup below needs whatever
+  // was last actually on the word, not whatever `zones` was when this
+  // effect itself was set up.
+  const zonesForCleanupRef = useRef(zones)
+  useEffect(() => {
+    zonesForCleanupRef.current = zones
+  }, [zones])
+
+  // Leaving a word that was created solely to attempt an AI illustration,
+  // without ever ending up with one — the 3 proposals were rejected, or the
+  // parent simply navigated away mid-flow — used to leave a bare, useless
+  // entry sitting in the bank forever. Removed here instead, the same way
+  // the bank's own delete does (a soft delete, out of the "in_bank" list),
+  // the moment the parent actually leaves this word behind — not on every
+  // intermediate step (cancelling the AI picker on its own doesn't trigger
+  // this; only really leaving does), and never for a word opened normally.
+  //
+  // One wrinkle: React (in StrictMode, dev only) sets up and tears down
+  // every effect once right at mount, purely to surface effects that
+  // aren't safe to repeat — which this one, on its own, would not be: at
+  // that first synthetic teardown `zones` is still genuinely empty, so a
+  // naive version of this would delete the word before the parent ever
+  // gets to see the letter-picker. `generationsRef` tells that synthetic
+  // teardown apart from a real departure: it's re-armed for this exact
+  // wordId the instant the effect sets up again (which StrictMode's replay
+  // does immediately, synchronously; a real departure never does), so
+  // deferring the actual check by one tick lets a same-word replay cancel
+  // itself out while a genuine departure still goes through.
+  const generationsRef = useRef(new Map())
+  useEffect(() => {
+    if (!wordId) return undefined
+    const cleanupWordId = wordId
+    const myGeneration = (generationsRef.current.get(wordId) || 0) + 1
+    generationsRef.current.set(wordId, myGeneration)
+    return () => {
+      if (!autoAiForCleanupRef.current) return
+      if (zonesForCleanupRef.current.length > 0) return
+      setTimeout(() => {
+        // generationsRef holds a plain Map, not a DOM node — safe to read
+        // here regardless of what's changed elsewhere by the time this
+        // fires (that's the whole point of it).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (generationsRef.current.get(cleanupWordId) !== myGeneration) return
+        removeWordFromBank(cleanupWordId).catch(() => {})
+      }, 0)
+    }
+  }, [wordId])
 
   const hasUnsavedChanges = Boolean(
     savedSnapshot &&
@@ -260,7 +350,12 @@ export default function WordEditorPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault()
-    const text = textDraft.trim()
+    // Words are always stored in uppercase — the letter-illustration
+    // pipeline reads its per-letter/per-range text straight off this same
+    // string (see handleGenerateAiIllustrations below), so normalizing it
+    // once here, at the source, is what keeps every letter sent to the AI
+    // generator uppercase too, without a separate fix there.
+    const text = textDraft.trim().toUpperCase()
     if (!text) return
     setSubmitting(true)
     setCreationError(null)
@@ -486,6 +581,12 @@ export default function WordEditorPage() {
           setZones(compressedZones)
           await updateWord(wordId, sentence, compressedZones)
           setSavedSnapshot({ sentence, zones: compressedZones })
+          // Only offer to share it if there's actually something new to
+          // share — a word that's already pending/common doesn't need
+          // asking again.
+          if (wordStatus === 'private' || wordStatus == null) {
+            setShowProposePrompt(true)
+          }
         } catch (err) {
           setSaveError(err.message)
         } finally {
@@ -494,8 +595,25 @@ export default function WordEditorPage() {
       }
       probe.src = dataUrl
     },
-    [resetAiFlow, wordId, sentence]
+    [resetAiFlow, wordId, sentence, wordStatus]
   )
+
+  // Submits the word just illustrated straight from this screen — the
+  // whole point being to never have to go looking for it again in a full
+  // bank of words just to reach the same share icon there.
+  const handleProposeFromEditor = async () => {
+    setProposing(true)
+    setProposeError(null)
+    try {
+      await submitWordForCommonBank(wordId)
+      setWordStatus('pending')
+      setProposed(true)
+    } catch (err) {
+      setProposeError(err.message)
+    } finally {
+      setProposing(false)
+    }
+  }
 
   // None of the 3 proposals fit — falls back to the exact same manual
   // editor a normal letter click would open, on the first letter of the
@@ -602,7 +720,11 @@ export default function WordEditorPage() {
         </p>
       )}
       <div className="page-header-row">
-        <h2>{wordText}</h2>
+        {/* wordText itself stays uppercase (that's what's stored and sent
+            to the backend — see handleCreate) — only shown lowercase here,
+            matching the illustrated word right below it (see
+            wordGeometry.measureWord). */}
+        <h2>{wordText.toLowerCase()}</h2>
         <div className="app-header-actions">
           {saveError && <span className="form-error">{saveError}</span>}
           {/* Nothing to act on yet while a letter selection/generation/
@@ -666,6 +788,37 @@ export default function WordEditorPage() {
               !aiWholeWordImage &&
               '👉 Clique sur une lettre pour l’illustrer et choisir sa couleur. Glisse-la vers la précédente pour les rapprocher (et la faire glisser jusqu’au bout pour annuler).'}
           </p>
+
+          {showProposePrompt && (
+            <div className="propose-common-banner no-print">
+              {proposed ? (
+                <span>✓ Proposé à la banque commune ! Il sera visible pour tous une fois validé par un administrateur.</span>
+              ) : (
+                <>
+                  <span>✨ Cette illustration te plaît ? Fais en profiter les autres enfants</span>
+                  {proposeError && <span className="form-error">{proposeError}</span>}
+                  <button
+                    type="button"
+                    className="btn btn-toggle active"
+                    onClick={handleProposeFromEditor}
+                    disabled={proposing}
+                  >
+                    <ShareIcon size={16} />
+                    {proposing ? 'Envoi…' : 'Proposer à la banque commune'}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                className="icon-btn propose-common-banner-close"
+                onClick={() => setShowProposePrompt(false)}
+                aria-label="Fermer"
+                title="Fermer"
+              >
+                <CloseIcon size={16} />
+              </button>
+            </div>
+          )}
 
           <div className="word-stage-fit" ref={editContainerRef}>
             <WordStage

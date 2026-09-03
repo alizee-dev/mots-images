@@ -8,8 +8,17 @@ export const ZONE_FRAME_ZOOM = 3
 // Lays out a word letter by letter. Coordinates scale linearly with fontSize,
 // so geometry captured at one fontSize can be re-expressed at any other size
 // just by multiplying/dividing by fontSize.
+//
+// Words are always stored (and sent to the backend) in uppercase — see
+// WordsBankPage/WordEditorPage's word-creation forms — but displayed here in
+// lowercase: this is the one shared place both the actual glyphs (via
+// `letter.char`, drawn as-is by WordStage) and every fitting/bounds
+// calculation (computeWordBounds, both its own callers and WordStage's own
+// internal use) come from, so lowercasing right here keeps what's measured
+// and what's drawn consistent everywhere, without the stored/uppercase text
+// itself ever changing.
 export function measureWord(text, fontFamily, fontSize, zones = []) {
-  const chars = Array.from(text || '')
+  const chars = Array.from((text || '').toLowerCase())
   const letters = []
   let cursorX = 0
   if (measureCtx) {

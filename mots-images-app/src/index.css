@@ -1482,6 +1482,35 @@ h3 {
   font-weight: 600;
 }
 
+/* A one-time, friendly nudge to share a just-illustrated word with the
+   common bank, right where the choice was just made — see
+   WordEditorPage's applyAiProposal. Same card language as
+   .common-word-notice, but sits inline in the page rather than fixed to
+   the viewport (this one is specific to the word being edited, not a
+   standing app-wide notice). */
+.propose-common-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  font-weight: 600;
+}
+
+.propose-common-banner span {
+  flex: 1 1 220px;
+}
+
+.propose-common-banner-close {
+  margin-left: auto;
+}
+
 .word-chain-edit-wrap {
   position: relative;
 }
