@@ -7,7 +7,7 @@ const { createWordController, getWordsController, postWordForStudentsController,
 router.post('/', authenticateTeacher, createWordController)
 router.get('/', authenticateTeacher, getWordsController)
 
-router.post('/:wordId/students', authenticateTeacher, postWordForStudentsController)
+//router.post('/:wordId/students', authenticateTeacher, postWordForStudentsController)
 
 router.put('/:wordId', authenticateTeacher, updateWordController)
 // in_bank is set to false instead of deleting the word from the database

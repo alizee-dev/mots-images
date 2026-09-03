@@ -1,7 +1,6 @@
 const {
   createWord,
   getWords,
-  wordForStudents,
   updateWord,
   deleteWordFromBank,
   getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords
@@ -23,6 +22,7 @@ const {toFile} = require("openai")
 
 const openai = new OpenAI()
 
+// Create a word in the teacher's bank with its text and sentence, and associate it with the teacher's ID
 const createWordController = async (req, res) => {
   try {
     const { text, sentence } = req.body
@@ -37,6 +37,7 @@ const createWordController = async (req, res) => {
   }
 }
 
+// Get all words of the teacher's bank, or get all words with status 'common' for the common bank, depending on the query parameter includeCommonWords
 const getWordsController = async (req, res) => {
   try {
     const teacher_id = req.teacherId
@@ -51,28 +52,30 @@ const getWordsController = async (req, res) => {
   }
 }
 
-const postWordForStudentsController = async (req, res) => {
-  const wordId = req.params.wordId
-  const { studentIds } = req.body
-  const teacherId = req.teacherId
-  //{ "studentIds": [3, 7, 12] }
+//// Links a word to a specified list of students. Was necessary for the V1.0 version of the app, but is now deprecated (private version for teachers who need to create different versions of a word for each students vs public collection for parents)
+//const postWordForStudentsController = async (req, res) => {
+//  const wordId = req.params.wordId
+//  const { studentIds } = req.body
+//  const teacherId = req.teacherId
+//  //{ "studentIds": [3, 7, 12] }
 
-  const words = await getWords(teacherId)
+//  const words = await getWords(teacherId, true)
 
-  if (words.find((word) => word.id === Number(wordId))) {
-    try {
-      const result = await wordForStudents(wordId, studentIds)
+//  if (words.find((word) => word.id === Number(wordId))) {
+//    try {
+//      const result = await wordForStudents(wordId, studentIds)
 
-      //console.log(result)
-      res.status(201).json(result)
-    } catch (error) {
-      res.status(500).json(error.message)
-    }
-  } else {
-    res.status(403).json("Forbidden")
-  }
-}
+//      //console.log(result)
+//      res.status(201).json(result)
+//    } catch (error) {
+//      res.status(500).json(error.message)
+//    }
+//  } else {
+//    res.status(403).json("Forbidden")
+//  }
+//}
 
+// Update a word's sentence and zones in the teacher's bank for a word that has not been illustrated by the AI (manually edited)
 const updateWordController = async (req, res) => {
   const wordId = req.params.wordId
   const { zones, sentence } = req.body
@@ -102,6 +105,7 @@ const updateWordController = async (req, res) => {
   }
 }
 
+// Soft delete a word from the teacher's bank by setting its in_bank property to false
 const deleteWordFromBankController = async (req, res) => {
   const wordId = req.params.wordId
   const teacherId = req.teacherId
@@ -119,6 +123,7 @@ const deleteWordFromBankController = async (req, res) => {
   }
 }
 
+// Generate an illustration for a word based on the concept provided by the AI
 const generateIllustrationController = async (req, res) => {
   const wordId = req.params.wordId
   const teacherId = req.teacherId
@@ -174,6 +179,7 @@ const generateIllustrationController = async (req, res) => {
   }
 }
 
+// Submit a word for review to the admin by setting its status to "pending"
 const setPendingStatusController = async (req, res) => {
   const wordId = req.params.wordId
   const teacherId = req.teacherId
@@ -192,6 +198,8 @@ const setPendingStatusController = async (req, res) => {
   }
 }
 
+
+// Set a word's status to "common" or "private" for admin review
 const setCommonStatusController = async (req, res) => {
   const wordId = req.params.wordId
   const status = 'common'
@@ -226,6 +234,7 @@ const setPrivateStatusController = async (req, res) => {
   }
 }
 
+// Get all words with a "pending" status for admin review
 const getPendingWordsController = async (req, res) => {
   try {
     const pendingWords = await getPendingWords()
@@ -238,7 +247,6 @@ const getPendingWordsController = async (req, res) => {
 module.exports = {
   createWordController,
   getWordsController,
-  postWordForStudentsController,
   updateWordController,
   deleteWordFromBankController,
   generateIllustrationController, 

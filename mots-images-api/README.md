@@ -178,10 +178,12 @@ Query params: `includeCommonWords` (optional, boolean) — when set to `true`, a
 Returns (200): `[{ id, text, sentence, zones, status }, ...]`
 
 **POST /words/:wordId/students**
-Links a word to one or more students (for words dedicated to specific children rather than kept in the general bank).
+~~Links a word to one or more students (for words dedicated to specific children rather than kept in the general bank).~~
+In V1, this allowed a teacher to keep several differently-illustrated versions of the same word, each targeting a specific letter group needed by a specific child (e.g. for "chien", one version illustrating "CH", another illustrating "EN", each assigned to the child who needed that particular letter combination memorized).
+This mechanism is deprecated in V2: the underlying `words_students` table was written to but never read by any training or test-session logic — no feature ever consumed this link. V2's intended approach for per-child targeting is different and not yet implemented. The controller and model function are commented out in the codebase.
 Body: `{ studentIds: number[] }`
 Returns (201): `[{ student_id, word_id }, ...]`
-Returns (403) if the word doesn't belong to the authenticated teacher.
+Returns (403) if the word doesn't belong to the authenticated teacher and isn't part of the common bank (status = 'common')
 
 **PUT /words/:wordId**
 Updates a word's `sentence` and/or `zones` (used to persist illustration changes after the word has been created).
@@ -191,7 +193,7 @@ Returns (403) if the word doesn't belong to the authenticated teacher.
 Returns (404) if no word matches (defensive check, in addition to the 403 check).
 
 **PUT /words/:wordId/status**
-Removes a word from the teacher's active bank (soft delete: sets `in_bank` to `false`). The word remains fully intact and visible in any series that already references it — only its visibility in GET /words is affected.
+Removes a word from the teacher's active bank (soft delete: sets `in_bank` to `false`). The word remains fully intact and visible in any series that already references it — only its visibility in GET /words is affected. If the word's status is common, it remains visible to other teachers via the common bank
 No body required.
 Returns (200): `{ id, in_bank }`
 Returns (404) if no matching word is found for this teacher.
@@ -248,7 +250,7 @@ Returns (201): `{ id, title }`
 Links existing words to a series, preserving the order they're given in.
 Body: `{ wordsIds: number[] }`
 Returns (201): `[{ series_id, word_id, order }, ...]`
-Returns (403) if the series doesn't belong to the authenticated teacher.
+Returns (403) if the series doesn't belong to the authenticated teacher , or if any of the given words don't belong to the authenticated teacher and aren't part of the common bank (status = 'common').
 
 **GET /series/:seriesId**
 Returns the full detail of a series — title, and for each linked word: text, sentence, and order.
@@ -340,3 +342,4 @@ Returns (403) if the session doesn't belong to the authenticated teacher.
 - **No API documentation tool.** Routes are documented here and in a Postman collection. A future improvement would be to generate interactive docs with Swagger/OpenAPI.
 - **`DECIMAL` columns return strings.** PostgreSQL returns `total_score` and `score` as strings (e.g. `"1.5"`), not numbers. Convert with `Number(...)` before doing further math on them if needed.
 - **One test session per assignment (V1).** The application flow doesn't currently allow re-assigning a series to a student who's already been assigned it, so only one test session per (series, student) pair is possible. This is enforced at the application level (`assignStudentsToSeriesController`), not by a database constraint alone. A V2 could allow multiple sessions per assignment (the `test_sessions` table already supports this structurally) if repeated evaluation becomes a need.
+- **Per-child word targeting (deprecated mechanism).** V1 included a `words_students` link table and a `POST /words/:wordId/students` route intended to let a teacher assign differently-illustrated versions of the same word to different children based on their specific letter-group needs. This was never connected to any training/test logic and is now commented out. V2 should design a proper mechanism for this need if it remains a priority.

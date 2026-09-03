@@ -1,5 +1,7 @@
 const { createSeries, linkWordsToSeries, seriesByTeacher, getSeriesDetail, getSeriesById, editSeriesTitle, updateSeriesStatus, deleteWordFromSeries, changeOrderOfWords } = require('../models/seriesModel')
+const { getWords } = require('../models/wordModel')
 
+// Create a new series (training and test) for the teacher
 const createSeriesController = async (req, res) => {
     try {
     const teacherId = req.teacherId
@@ -16,14 +18,19 @@ const createSeriesController = async (req, res) => {
     }
 }
 
+// Link a word to a training/test
 const linkWordsToSeriesController = async (req, res) => {
     const teacherId = req.teacherId
     const seriesId = req.params.seriesId
     const {wordsIds} = req.body
 
     const series = await seriesByTeacher(teacherId)
+    const words = await getWords(teacherId, true)
+
+    const seriesIsValid = series.find(series => series.id === Number(seriesId))
+    const allWordsAreValid = wordsIds.every(id => words.find(word => word.id === Number(id)))
     
-    if (series.find(series => series.id === Number(seriesId))) {
+    if (seriesIsValid && allWordsAreValid) {
         try {
         
         const association = await linkWordsToSeries(seriesId, wordsIds)
