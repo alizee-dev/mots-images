@@ -75,7 +75,7 @@ const getWordsController = async (req, res) => {
 //  }
 //}
 
-// Update a word's sentence and zones in the teacher's bank for a word that has not been illustrated by the AI (manually edited)
+// Register the illustration (manually edited or AI-generated) in the corresponding zones of the word in the database, and return the edited word
 const updateWordController = async (req, res) => {
   const wordId = req.params.wordId
   const { zones, sentence } = req.body

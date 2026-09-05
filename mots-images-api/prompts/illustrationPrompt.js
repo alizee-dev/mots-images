@@ -21,7 +21,7 @@ In both cases: the main element must truly take on the exact geometric shape of 
 
 1. The word must remain legible: all letters present, in the correct order, clearly readable. Letters must be correctly oriented: no mirroring, flipping, or reversal.
 
-2. The letter(s) to be memorized must be illustrated: the spelling difficulty visually integrated.
+2. The letter(s) to be memorized must be illustrated: the spelling difficulty visually integrated. The letter mus fit in the correct place in the word, in the correct order, and must be clearly recognizable as that letter.
 
 3. Visuo-semantic integration: the letters become a real element of the drawing, connected to the meaning of the word.
 Targeting constraint — mandatory and taking priority over any other consideration: only the letter(s) indicated in the task (section 5) must be fused with a visual element. No other letter in the word should be transformed, distorted, or fused with an element, even if that other element seems to illustrate the meaning of the word more obviously or naturally.
