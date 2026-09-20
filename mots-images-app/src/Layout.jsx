@@ -50,7 +50,7 @@ export default function Layout() {
           <div className="app-header-top">
             <h1>
               <NavLink to="/" className="app-logo-link">
-                Totémots
+                Mots-images
               </NavLink>
             </h1>
             <div className="app-header-actions">

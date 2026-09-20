@@ -1,8 +1,8 @@
 # Mots-images
 
-A spelling memorization app for children with dysorthographia, based on the visual mnemonic method (word-images): pairing an illustration with the letter or group of letters that causes trouble in a word.
+A spelling memorization app for children with dysorthographia, based on the visual mnemonic method (word-images): pairing an illustration with the letter or group of letters that causes trouble in a word. Illustrating a word is primarily automatic — a parent or teacher picks the letters to work on and an AI model generates the illustration — with manual drawing available as a fallback for the cases the model can't handle well.
 
-A teacher (or a parent) creates illustrated words, groups them into thematic series, assigns them to students, and tracks their progress through test sessions.
+A parent (or teacher) builds up a personal bank of illustrated words this way, can share any of them into a common bank — a collaborative illustrated dictionary available to every user — and composes them into training series. Each series can be practiced through three progressive difficulty levels before being taken as a graded evaluation, with results and a per-word score history tracked over time for each child.
 
 ![Dashboard](./mots-images-app/docs/screenshots/dashboard.png)
 
@@ -19,9 +19,9 @@ Each subfolder has its own README with detailed setup instructions and documenta
 
 This is the part of the project I gave the most attention to, and it best reflects my work as a developer. A few things worth checking out in its full documentation:
 
-- **A 10-table relational schema**, with several many-to-many relationships (a student can have multiple teachers, a word can belong to multiple series), soft deletes to preserve teaching history even after deletion, and a unique constraint preventing duplicate assignments.
+- **A 10-table relational schema**, with several many-to-many relationships (a student can have multiple teachers, a word can belong to multiple series), soft deletes to preserve teaching history even after deletion, and application-level duplicate-assignment prevention.
 - **Authorization checked systematically per resource**: every route doesn't just verify a user is logged in, it verifies the requested resource actually belongs to them — a teacher can never access another teacher's students, words, or series.
-- **Real business logic, not a plain CRUD**: conditional score calculation based on attempt count, test result aggregation, JSONB handling for illustration data.
+- **Real business logic, not a plain CRUD**: a two-step OpenAI pipeline for AI-assisted illustration generation (rate-limited per teacher), a private/pending/common moderation workflow for a shared word bank, test result aggregation, JSONB handling for illustration data.
 
 👉 **[Read the full backend documentation](./mots-images-api/README.md)** — database schema, full route list with inputs/outputs, architecture choices, known limitations.
 
@@ -29,21 +29,27 @@ This is the part of the project I gave the most attention to, and it best reflec
 
 ### Illustrating a word, letter by letter
 
-Freehand drawing, stickers, imported images with cropping — each difficult letter or letter group gets its own mnemonic illustration.
+Pick the letter or letter group that's giving trouble, and an AI model generates the mnemonic illustration — this is the default way words get illustrated. When the model doesn't produce a usable result, the same editor falls back to manual tools: freehand drawing, stickers, imported images with cropping.
 
 ![Word editor](./mots-images-app/docs/screenshots/word-editor.png)
 
-### Composing and managing series
+### Composing and managing training series
 
-A series groups several words together, with fill-in-the-blank sentences, a reorderable sequence, and printable cards for offline practice.
+A series is built from previously illustrated words (from the personal or common bank), with fill-in-the-blank sentences, a reorderable sequence, and printable cards for offline practice.
 
 ![Series detail](./mots-images-app/docs/screenshots/series-detail.png)
 
-### A reusable word bank
+### A personal and shared word bank
+
+Words illustrated this way are kept in a personal bank, and can be submitted to a common bank shared across every user — a collaborative illustrated dictionary anyone can browse and reuse.
 
 ![Words bank](./mots-images-app/docs/screenshots/words-bank.png)
 
-### Taking the test
+### Practicing before the evaluation
+
+Before taking the graded evaluation, a child can practice a training's words through three progressive levels, done in sequence or picked individually: reconstructing the illustrated word from shuffled letter tiles, then reordering tiles for the same word heard but not shown (so only the order can be wrong, never the letters), then writing it from memory on the keyboard after hearing it once. This practice is free and never graded.
+
+### Taking the evaluation
 
 Fill-in-the-blank sentence, two attempts, an illustrated hint shown after a second miss, a detailed word-by-word result.
 
@@ -52,9 +58,11 @@ Fill-in-the-blank sentence, two attempts, an illustrated hint shown after a seco
 
 ### Tracking progress
 
-A clear view of score evolution over time, for each student.
+A clear view of score evolution over time for each child, down to a per-word score breakdown for any past evaluation.
 
 ![Progress chart](./mots-images-app/docs/screenshots/progress-chart.png)
+
+**Also included, not pictured here:** an admin role that moderates submissions to the common word bank.
 
 ## Division of work
 
@@ -64,19 +72,16 @@ The **frontend** was generated by Claude Code, under my constant supervision: de
 
 ## Where this could go next
 
-The current word illustration workflow is fully manual: the teacher draws, positions, and crops visual elements on each letter by hand. A natural evolution would be to replace this editor entirely with a guided AI pipeline: the teacher would only enter the word and the specific letters to memorize (plus an optional direction for the illustration), and a multi-step process would handle the rest —
+AI-generated illustration (currently *beta*, rate-limited per teacher) is already the default way a word gets illustrated: a parent or teacher enters a word and the specific letters to memorize, and a two-step pipeline generates a concept, then renders it as 3 image variations to pick from — see [`POST /words/:wordId/generate-illustration`](./mots-images-api/README.md) for the full pipeline. The manual editor only comes in as a fallback, for the words the model fails to illustrate well. Two steps of the original idea for this pipeline aren't built yet, which is why the final judgment call is still made by hand, by picking among the 3 proposals:
 
-1. **Semantic analysis** — understand the word's meaning and identify visual elements genuinely associated with it.
-2. **Concept generation** — propose several distinct illustration concepts where the target letters become an actual part of the drawn subject (not text placed on top of it), each scored on how naturally the letters integrate into the meaning.
-3. **Quality control** — evaluate and rank the concepts against explicit criteria (semantic relevance, natural letter integration, word readability, likely memorability for a child, absence of artificially invented details).
-4. **Image generation** — generate the selected concept as a clean, readable illustration.
-5. **Verification** — check the generated image against the original word, letter positions, and pedagogical intent before presenting it to the teacher.
+- **Quality control** — automatically evaluate and rank the generated concepts against explicit criteria (semantic relevance, natural letter integration, word readability, likely memorability for a child, absence of artificially invented details), instead of leaving that judgment entirely to the parent or teacher.
+- **Verification** — automatically check the generated image against the original word, letter positions, and pedagogical intent before presenting it, to catch bad generations before they reach the picker.
 
-This would turn illustration from a manual drawing task into a guided creative direction task — the teacher expresses intent, the pipeline proposes and validates the visual result.
+Closing this gap would turn illustration from "pick the best of 3" into a guided creative direction task where the parent or teacher expresses intent and the pipeline does more of its own quality assurance — reducing how often the manual fallback is needed at all.
 
 ## Tech stack
 
-**Backend**: Node.js, Express, PostgreSQL, JWT, bcrypt
+**Backend**: Node.js, Express, PostgreSQL, JWT, bcrypt, OpenAI (illustration generation)
 **Frontend**: React, Vite, Konva (illustration canvas), react-router-dom, recharts (progress visualization)
 
 ## Live demo
