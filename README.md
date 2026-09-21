@@ -4,7 +4,7 @@ A spelling memorization app for children with dysorthographia, based on the visu
 
 A parent (or teacher) builds up a personal bank of illustrated words this way, can share any of them into a common bank — a collaborative illustrated dictionary available to every user — and composes them into training series. Each series can be practiced through three progressive difficulty levels before being taken as a graded evaluation, with results and a per-word score history tracked over time for each child.
 
-![Dashboard](./mots-images-app/docs/screenshots/dashboard.png)
+![homepage](./mots-images-app/docs/screenshots/homepage.png)
 
 ## Project structure
 
@@ -31,19 +31,20 @@ This is the part of the project I gave the most attention to, and it best reflec
 
 Pick the letter or letter group that's giving trouble, and an AI model generates the mnemonic illustration — this is the default way words get illustrated. When the model doesn't produce a usable result, the same editor falls back to manual tools: freehand drawing, stickers, imported images with cropping.
 
-![Word editor](./mots-images-app/docs/screenshots/word-editor.png)
+![Word illustrator](./mots-images-app/docs/screenshots/wordIllustrator.png)
 
 ### Composing and managing training series
 
 A series is built from previously illustrated words (from the personal or common bank), with fill-in-the-blank sentences, a reorderable sequence, and printable cards for offline practice.
 
-![Series detail](./mots-images-app/docs/screenshots/series-detail.png)
+![training](./mots-images-app/docs/screenshots/training.png)
 
 ### A personal and shared word bank
 
 Words illustrated this way are kept in a personal bank, and can be submitted to a common bank shared across every user — a collaborative illustrated dictionary anyone can browse and reuse.
 
-![Words bank](./mots-images-app/docs/screenshots/words-bank.png)
+![Bank](./mots-images-app/docs/screenshots/bank.png)
+![Training_level1](./mots-images-app/docs/screenshots/training_level1.png)
 
 ### Practicing before the evaluation
 
@@ -52,9 +53,6 @@ Before taking the graded evaluation, a child can practice a training's words thr
 ### Taking the evaluation
 
 Fill-in-the-blank sentence, two attempts, an illustrated hint shown after a second miss, a detailed word-by-word result.
-
-![Test in progress](./mots-images-app/docs/screenshots/test-in-progress.png)
-![Test completed](./mots-images-app/docs/screenshots/test-completed.png)
 
 ### Tracking progress
 
