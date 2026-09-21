@@ -43,8 +43,6 @@ A series is built from previously illustrated words (from the personal or common
 
 Words illustrated this way are kept in a personal bank, and can be submitted to a common bank shared across every user — a collaborative illustrated dictionary anyone can browse and reuse.
 
-![Bank](./mots-images-app/docs/screenshots/bank.png)
-
 ### Practicing before the evaluation
 
 Before taking the graded evaluation, a child can practice a training's words through three progressive levels, done in sequence or picked individually: reconstructing the illustrated word from shuffled letter tiles, then reordering tiles for the same word heard but not shown (so only the order can be wrong, never the letters), then writing it from memory on the keyboard after hearing it once. This practice is free and never graded.
