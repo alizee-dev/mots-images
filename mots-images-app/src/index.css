@@ -1956,6 +1956,29 @@ h3 {
   gap: 8px;
 }
 
+/* The word count badge on the "Banque commune" tab — a light pill on the
+   inactive (muted) background, flipped to a translucent white one once
+   .btn-tab.active turns the button itself dark green, so it stays legible
+   either way without a third color of its own. */
+.scope-toggle-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.btn-tab.active .scope-toggle-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
 .scope-toggle-row {
   display: flex;
   align-items: center;

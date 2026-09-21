@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createWord, getWords, removeWordFromBank, submitWordForCommonBank } from '../../api/words'
-import { addWordsToSeries, getSeriesDetail } from '../../api/series'
+import { addWordsToSeries, getSeriesDetail, removeWordFromSeries } from '../../api/series'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
 import PrintWordsButton from '../../components/PrintWordsButton'
 import TrashIcon from '../../components/TrashIcon'
@@ -57,6 +57,11 @@ export default function WordsBankPage() {
   // addMode, which always merges both regardless (see loadWords), so the
   // toggle this drives is hidden there anyway.
   const [scope, setScope] = useState(addMode ? 'all' : null)
+  // Fetched independently of `scope` so the badge on the "Banque commune"
+  // tab shows the real count right away even when the default scope lands
+  // on 'mine' (see the effect below) and the common words haven't been
+  // fetched for display yet.
+  const [commonCount, setCommonCount] = useState(null)
 
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -124,6 +129,20 @@ export default function WordsBankPage() {
     loadWords()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope])
+
+  // The toggle itself isn't shown in addMode, so there's no badge to feed.
+  useEffect(() => {
+    if (addMode) return undefined
+    let cancelled = false
+    getWords({ includeCommonWords: true })
+      .then((all) => {
+        if (!cancelled) setCommonCount(all.filter((w) => w.status === 'common').length)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [addMode])
 
   // addMode's own bookkeeping: whatever this entraînement already contains
   // — including words added in an earlier visit, or the one just added via
@@ -227,13 +246,28 @@ export default function WordsBankPage() {
     })
   }
 
-  const handleAddToSeries = async (word) => {
-    if (addingId || addedIds.has(word.id)) return
+  // Tapping an already-added word removes it again — the same "tap to
+  // change your mind" comfort as the plain bank's selection mode, just
+  // backed by an immediate add/remove call rather than local-only state,
+  // since a word here is already linked to the entraînement as soon as
+  // it's tapped once.
+  const handleToggleAddToSeries = async (word) => {
+    if (addingId) return
+    const alreadyAdded = addedIds.has(word.id)
     setAddingId(word.id)
     setError(null)
     try {
-      await addWordsToSeries(forSeriesId, [word.id])
-      setAddedIds((prev) => new Set(prev).add(word.id))
+      if (alreadyAdded) {
+        await removeWordFromSeries(forSeriesId, word.id)
+        setAddedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(word.id)
+          return next
+        })
+      } else {
+        await addWordsToSeries(forSeriesId, [word.id])
+        setAddedIds((prev) => new Set(prev).add(word.id))
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -399,6 +433,7 @@ export default function WordsBankPage() {
             >
               <span className="scope-toggle-label-full">Banque commune</span>
               <span className="scope-toggle-label-short">Banque</span>
+              {commonCount != null && <span className="scope-toggle-count">{commonCount}</span>}
             </button>
           </div>
           {!selectionMode && (
@@ -439,8 +474,8 @@ export default function WordsBankPage() {
                 <button
                   type="button"
                   className="word-bank-card-select"
-                  onClick={() => handleAddToSeries(word)}
-                  disabled={added || addingId === word.id}
+                  onClick={() => handleToggleAddToSeries(word)}
+                  disabled={addingId === word.id}
                   aria-pressed={added}
                 >
                   <span className="word-bank-checkbox" aria-hidden="true">
@@ -545,6 +580,22 @@ export default function WordsBankPage() {
             →
           </button>
         </nav>
+      )}
+
+      {/* Same fixed bottom bar as the plain bank's selection toolbar below,
+          just tracking words already added to this entraînement instead of
+          a local-only selection — so a parent always knows where they
+          stand while tapping through the bank, the way they already do
+          when building a selection from "Ma banque de mots". */}
+      {addMode && addedIds.size > 0 && (
+        <>
+          <div className="selection-toolbar-spacer" aria-hidden="true" />
+          <div className="selection-toolbar no-print">
+            <span className="selection-count">
+              {addedIds.size} mot{addedIds.size === 1 ? '' : 's'} ajouté{addedIds.size === 1 ? '' : 's'}
+            </span>
+          </div>
+        </>
       )}
 
       {/* Reserves the room the fixed toolbar below covers, so it never

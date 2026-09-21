@@ -141,7 +141,7 @@ const generateIllustrationController = async (req, res) => {
 
     if (count < 400) {
       const response = await openai.responses.create({
-        model: "gpt-5.6-sol",
+        model: "gpt-6-astra",
         input: conceptPrompt,
       })
       
@@ -154,10 +154,11 @@ const generateIllustrationController = async (req, res) => {
       )
 
       const result = await openai.images.edit({
-        model: "gpt-image-2",
+        model: "gpt-image-2.5-flare",
         image: styleReference,
         prompt: illustrationPrompt,
         n: 3,
+        quality: "high",
       })
 
       const illustrations = result.data.map((data, index) => ({
