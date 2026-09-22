@@ -42,6 +42,18 @@ export function getPendingWords() {
   return apiFetch('/words/status/pending')
 }
 
+// Admin only — every word still in a bank or already used in a série,
+// across all teachers, for manually writing/correcting sentences.
+export function getWordsForSentenceEditing() {
+  return apiFetch('/words/admin/sentences')
+}
+
+// Admin only — sets or corrects a word's sentence directly, regardless of
+// which teacher owns it.
+export function updateWordSentenceAsAdmin(wordId, sentence) {
+  return apiFetch(`/words/${wordId}/sentence`, { method: 'PUT', body: { sentence } })
+}
+
 // Beta: generates 3 AI illustration proposals for one letter or a
 // consecutive run of letters. `positions` is 1-based, matching the API's
 // convention (not this app's usual 0-based letterIndex).

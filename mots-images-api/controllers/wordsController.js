@@ -3,7 +3,8 @@ const {
   getWords,
   updateWord,
   deleteWordFromBank,
-  getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords
+  getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords,
+  getWordsForSentenceEditing, updateWordSentence
 } = require("../models/wordModel")
 
 const {
@@ -13,6 +14,7 @@ const {
 
 const { buildIllustrationPrompt } = require("../prompts/illustrationPrompt")
 const { buildConceptPrompt } = require("../prompts/responsesPrompt")
+const { buildDictationPrompt } = require("../prompts/dictationPrompt")
 const { getLettersPositions } = require("../utils/getLettersPositions")
 
 require("dotenv").config()
@@ -22,13 +24,43 @@ const {toFile} = require("openai")
 
 const openai = new OpenAI()
 
-// Create a word in the teacher's bank with its text and sentence, and associate it with the teacher's ID
+// Create a word in the teacher's bank with its text and sentence, and associate it with the teacher's ID.
+// The sentence is generated automatically from an AI dictation prompt — a failure here must never
+// block word creation, so it's caught in its own try/catch and simply falls back to whatever sentence
+// the client sent (today always '').
 const createWordController = async (req, res) => {
   try {
     const { text, sentence } = req.body
     const teacherId = req.teacherId
 
-    const word = await createWord(text, sentence, teacherId)
+    let generatedSentence = sentence
+
+    try {
+      const dictationPrompt = buildDictationPrompt(text)
+      const response = await openai.responses.create({
+        model: "gpt-5.6-luna",
+        input: dictationPrompt,
+      })
+      const aiSentence = response.output_text?.trim()
+      console.log(`Phrase générée pour "${text}": "${aiSentence}"`)
+
+      // The frontend masks the sentence by literally searching for the word
+      // inside it (see maskWordInSentence) — a generated sentence that doesn't
+      // contain the word verbatim would silently render with no blank at all,
+      // so that same check is applied here before keeping it.
+      const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const wordAppears = aiSentence && new RegExp(escaped, 'i').test(aiSentence)
+
+      if (wordAppears) {
+        generatedSentence = aiSentence
+      } else if (aiSentence) {
+        console.error(`Phrase générée pour "${text}" ne contient pas le mot tel quel, ignorée: "${aiSentence}"`)
+      }
+    } catch (aiError) {
+      console.error(`Échec de la génération de phrase pour "${text}":`, aiError.message)
+    }
+
+    const word = await createWord(text, generatedSentence, teacherId)
 
     //console.log(word)
     res.status(201).json(word)
@@ -245,13 +277,44 @@ const getPendingWordsController = async (req, res) => {
   }
 }
 
+// Get every word an admin can meaningfully edit the sentence of (still in a
+// bank, or already used in a série), across all teachers
+const getWordsForSentenceEditingController = async (req, res) => {
+  try {
+    const words = await getWordsForSentenceEditing()
+    res.status(200).json(words)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
+// Admin-only: set or correct a word's sentence directly, regardless of which
+// teacher owns it
+const updateWordSentenceController = async (req, res) => {
+  const wordId = req.params.wordId
+  const { sentence } = req.body
+
+  try {
+    const validWord = await adminGetWords(wordId)
+    if (!validWord) {
+      return res.status(404).json("Word not found")
+    }
+
+    const updatedWord = await updateWordSentence(wordId, sentence)
+    res.status(200).json(updatedWord)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
 module.exports = {
   createWordController,
   getWordsController,
   updateWordController,
   deleteWordFromBankController,
-  generateIllustrationController, 
-  setPendingStatusController, 
-  setCommonStatusController, 
-  setPrivateStatusController, getPendingWordsController
+  generateIllustrationController,
+  setPendingStatusController,
+  setCommonStatusController,
+  setPrivateStatusController, getPendingWordsController,
+  getWordsForSentenceEditingController, updateWordSentenceController
 }

@@ -1176,6 +1176,55 @@ h3 {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Admin "Phrases" tab — a table of one editable sentence per word, wrapped
+   so a narrow screen scrolls horizontally rather than squashing the
+   textarea column unreadably. */
+.admin-sentence-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-sentence-table th:first-child,
+.admin-sentence-table td:first-child {
+  width: 220px;
+}
+
+.admin-sentence-table th:last-child,
+.admin-sentence-table td:last-child {
+  width: 140px;
+  text-align: right;
+}
+
+.admin-sentence-input {
+  width: 100%;
+  min-width: 240px;
+  resize: vertical;
+}
+
+.admin-sentence-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.admin-sentence-missing-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.admin-sentence-warning {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+}
+
 /* Word / student picker */
 .word-picker {
   display: grid;
@@ -2150,6 +2199,7 @@ h3 {
 .test-answer-form {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
 }
 

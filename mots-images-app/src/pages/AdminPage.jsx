@@ -1,15 +1,23 @@
 import { Fragment, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { approveWord, getPendingWords, getWords, rejectWord } from '../api/words'
+import {
+  approveWord,
+  getPendingWords,
+  getWords,
+  getWordsForSentenceEditing,
+  rejectWord,
+  updateWordSentenceAsAdmin,
+} from '../api/words'
+import { maskWordInSentence } from '../practiceSentence'
 import IllustratedWordPreview from '../components/IllustratedWordPreview'
 import CheckIcon from '../components/CheckIcon'
 import CloseIcon from '../components/CloseIcon'
 import ConfirmDeleteButton from '../components/ConfirmDeleteButton'
 
-// Illustrations per page on the "Banque commune" tab — a bank shared by
-// every teacher can grow into the hundreds, so this is paginated exactly
-// like the word bank itself rather than dumped on one long scroll.
+// Rows per page on the "Banque commune" and "Phrases" tabs — both can list
+// well over a hundred words, so they're paginated rather than dumped on one
+// long scroll.
 const COMMON_PAGE_SIZE = 24
 
 // A "windowed" page list — first page, last page, and a small run around
@@ -58,6 +66,19 @@ export default function AdminPage() {
   const [commonSearch, setCommonSearch] = useState('')
   const [commonPage, setCommonPage] = useState(1)
 
+  // Every word an admin can meaningfully write/correct a sentence for
+  // (still in a bank, or already used in a série), across all teachers —
+  // `drafts` holds the in-progress textarea value per word id, separate
+  // from the saved `sentence` on each word so a save button can tell
+  // whether there's anything to persist.
+  const [sentenceWords, setSentenceWords] = useState([])
+  const [sentenceLoading, setSentenceLoading] = useState(true)
+  const [sentenceError, setSentenceError] = useState(null)
+  const [sentenceSearch, setSentenceSearch] = useState('')
+  const [sentencePage, setSentencePage] = useState(1)
+  const [drafts, setDrafts] = useState({})
+  const [savingId, setSavingId] = useState(null)
+
   useEffect(() => {
     if (!isAdmin) return
     getPendingWords()
@@ -83,6 +104,21 @@ export default function AdminPage() {
   useEffect(() => {
     setCommonPage(1)
   }, [commonSearch])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    getWordsForSentenceEditing()
+      .then((words) => {
+        setSentenceWords(words)
+        setDrafts(Object.fromEntries(words.map((w) => [w.id, w.sentence || ''])))
+      })
+      .catch((err) => setSentenceError(err.message))
+      .finally(() => setSentenceLoading(false))
+  }, [isAdmin])
+
+  useEffect(() => {
+    setSentencePage(1)
+  }, [sentenceSearch])
 
   if (!isAdmin) return <Navigate to="/" replace />
 
@@ -117,6 +153,24 @@ export default function AdminPage() {
     }
   }
 
+  // Saves a word's sentence in place — never removed from the list, so the
+  // admin can come back and correct any word (even one already filled)
+  // whenever a sentence turns out to be unsuitable or misspelled.
+  const handleSaveSentence = async (word) => {
+    const draft = (drafts[word.id] ?? '').trim()
+    setSavingId(word.id)
+    setSentenceError(null)
+    try {
+      await updateWordSentenceAsAdmin(word.id, draft)
+      setSentenceWords((prev) => prev.map((w) => (w.id === word.id ? { ...w, sentence: draft } : w)))
+      setDrafts((prev) => ({ ...prev, [word.id]: draft }))
+    } catch (err) {
+      setSentenceError(err.message)
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   const filteredCommonWords = commonWords.filter((word) =>
     word.text.toLowerCase().includes(commonSearch.trim().toLowerCase())
   )
@@ -129,6 +183,18 @@ export default function AdminPage() {
     safeCommonPage * COMMON_PAGE_SIZE
   )
   const commonPageNumbers = getPageNumbers(safeCommonPage, commonTotalPages)
+
+  const filteredSentenceWords = sentenceWords.filter((word) =>
+    word.text.toLowerCase().includes(sentenceSearch.trim().toLowerCase())
+  )
+  const sentenceTotalPages = Math.max(1, Math.ceil(filteredSentenceWords.length / COMMON_PAGE_SIZE))
+  const safeSentencePage = Math.min(sentencePage, sentenceTotalPages)
+  const sentencePageWords = filteredSentenceWords.slice(
+    (safeSentencePage - 1) * COMMON_PAGE_SIZE,
+    safeSentencePage * COMMON_PAGE_SIZE
+  )
+  const sentencePageNumbers = getPageNumbers(safeSentencePage, sentenceTotalPages)
+  const missingSentenceCount = sentenceWords.filter((w) => !w.sentence).length
 
   return (
     <div className="page">
@@ -151,9 +217,16 @@ export default function AdminPage() {
         >
           Banque commune
         </button>
+        <button
+          type="button"
+          className={`btn btn-tab ${tab === 'sentences' ? 'active' : ''}`}
+          onClick={() => setTab('sentences')}
+        >
+          Phrases
+        </button>
       </div>
 
-      {tab === 'pending' ? (
+      {tab === 'pending' && (
         <>
           <p className="page-subtitle">Mots en attente de validation pour la banque commune</p>
 
@@ -195,7 +268,9 @@ export default function AdminPage() {
             </ul>
           )}
         </>
-      ) : (
+      )}
+
+      {tab === 'common' && (
         <>
           <p className="page-subtitle">Mots actuellement partagés dans la banque commune</p>
 
@@ -265,6 +340,127 @@ export default function AdminPage() {
                 className="btn btn-secondary pagination-arrow"
                 onClick={() => setCommonPage((p) => Math.min(commonTotalPages, p + 1))}
                 disabled={safeCommonPage === commonTotalPages}
+                aria-label="Page suivante"
+              >
+                →
+              </button>
+            </nav>
+          )}
+        </>
+      )}
+
+      {tab === 'sentences' && (
+        <>
+          <p className="page-subtitle">
+            {missingSentenceCount} phrase{missingSentenceCount === 1 ? '' : 's'} manquante
+            {missingSentenceCount === 1 ? '' : 's'} sur {sentenceWords.length} mot{sentenceWords.length === 1 ? '' : 's'}
+          </p>
+
+          <input
+            type="text"
+            className="word-input"
+            placeholder="Rechercher un mot…"
+            value={sentenceSearch}
+            onChange={(e) => setSentenceSearch(e.target.value)}
+          />
+
+          {sentenceError && <p className="form-error">{sentenceError}</p>}
+          {sentenceLoading && <p>Chargement…</p>}
+
+          {!sentenceLoading && !sentenceError && filteredSentenceWords.length === 0 && (
+            <p className="empty-hint">
+              {sentenceWords.length === 0
+                ? 'Aucun mot à éditer pour l’instant.'
+                : 'Aucun mot ne correspond à cette recherche.'}
+            </p>
+          )}
+
+          {sentencePageWords.length > 0 && (
+            <div className="admin-sentence-table-wrapper">
+              <table className="data-table admin-sentence-table">
+                <thead>
+                  <tr>
+                    <th>Mot</th>
+                    <th>Phrase</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sentencePageWords.map((word) => {
+                    const draft = drafts[word.id] ?? ''
+                    const isDirty = draft.trim() !== (word.sentence || '')
+                    const showWarning = draft.trim().length > 0 && maskWordInSentence(draft, word.text) === null
+                    return (
+                      <tr key={word.id}>
+                        <td>
+                          <strong>{word.text}</strong>
+                          <div className="admin-sentence-meta">
+                            #{word.id} · {word.status === 'common' ? 'commune' : 'privé'}
+                            {!word.sentence && <span className="admin-sentence-missing-badge">Phrase manquante</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <textarea
+                            className="word-input admin-sentence-input"
+                            rows={2}
+                            value={draft}
+                            onChange={(e) => setDrafts((prev) => ({ ...prev, [word.id]: e.target.value }))}
+                          />
+                          {showWarning && (
+                            <p className="form-error admin-sentence-warning">
+                              Le mot « {word.text} » n’apparaît pas tel quel dans cette phrase.
+                            </p>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-toggle active"
+                            onClick={() => handleSaveSentence(word)}
+                            disabled={!isDirty || savingId === word.id}
+                          >
+                            {savingId === word.id ? 'Enregistrement…' : 'Enregistrer'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {sentenceTotalPages > 1 && (
+            <nav className="pagination no-print" aria-label="Pages des phrases">
+              <button
+                type="button"
+                className="btn btn-secondary pagination-arrow"
+                onClick={() => setSentencePage((p) => Math.max(1, p - 1))}
+                disabled={safeSentencePage === 1}
+                aria-label="Page précédente"
+              >
+                ←
+              </button>
+              <div className="pagination-numbers">
+                {sentencePageNumbers.map((n, i) => (
+                  <Fragment key={n}>
+                    {i > 0 && n - sentencePageNumbers[i - 1] > 1 && <span className="pagination-ellipsis">…</span>}
+                    <button
+                      type="button"
+                      className={`pagination-page ${n === safeSentencePage ? 'active' : ''}`}
+                      onClick={() => setSentencePage(n)}
+                      aria-current={n === safeSentencePage ? 'page' : undefined}
+                    >
+                      {n}
+                    </button>
+                  </Fragment>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary pagination-arrow"
+                onClick={() => setSentencePage((p) => Math.min(sentenceTotalPages, p + 1))}
+                disabled={safeSentencePage === sentenceTotalPages}
                 aria-label="Page suivante"
               >
                 →

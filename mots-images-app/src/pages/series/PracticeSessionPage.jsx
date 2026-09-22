@@ -90,19 +90,6 @@ export default function PracticeSessionPage() {
   const LevelComponent = LEVEL_COMPONENTS[currentLevel]
   const needsAudio = currentLevel === 2 || currentLevel === 3
 
-  // Auto-plays once when a brand new word first appears on a level that
-  // needs audio — deliberately not when a retry begins (attemptNumber
-  // 1→2): the word must never be dictated automatically alongside the
-  // error message, only on request via the icon in the mascotte's own
-  // bubble below. Levels 2 and 3 no longer have their own "hear the word"
-  // button.
-  useEffect(() => {
-    if (currentWord && needsAudio) {
-      speakWord(currentWord.text)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWord?.id, needsAudio])
-
   // `resultsSoFar` is passed explicitly rather than read from the
   // `runResults` state closure — when this runs from inside a setTimeout
   // scheduled in the same handleAnswered call that just appended this

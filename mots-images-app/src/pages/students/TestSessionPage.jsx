@@ -5,7 +5,9 @@ import { getSeriesDetail } from '../../api/series'
 import { getMyStudents } from '../../api/students'
 import { submitTestSession } from '../../api/testSessions'
 import IllustratedWordPreview from '../../components/IllustratedWordPreview'
+import PracticeMascot from '../../components/practice/PracticeMascot'
 import { TestGuardContext } from '../../testGuardContext'
+import { speakWord } from '../../practiceSpeech'
 
 const EXIT_WARNING = 'Quitter maintenant abandonnera ce test : la progression ne sera pas enregistrée. Continuer ?'
 
@@ -182,6 +184,23 @@ export default function TestSessionPage() {
     }
   }
 
+  // Once feedback is showing, there's no more form/input on screen to catch
+  // Enter via a submit — this listens globally so Enter moves on to the next
+  // word (or the results screen) exactly like clicking the button does,
+  // without requiring the child to reach for the mouse.
+  useEffect(() => {
+    if (!resolved) return undefined
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && !submitting) {
+        e.preventDefault()
+        handleNextWord()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, submitting])
+
   const totalScore = useMemo(() => results.reduce((sum, r) => sum + r.score, 0), [results])
 
   if (loading) return <div className="page test-scope">Chargement…</div>
@@ -255,6 +274,17 @@ export default function TestSessionPage() {
       </div>
 
       <div className="test-card">
+        {/* Same style as level 3 of the practice flow — purely the "listen"
+            invitation, never triggered automatically (see PracticeMascot).
+            Hidden once resolved: the feedback below already speaks for
+            itself at that point. */}
+        {!resolved && (
+          <PracticeMascot
+            message="Écoute le mot à écrire"
+            onIconClick={() => speakWord(currentWord.text)}
+          />
+        )}
+
         <p className="test-sentence font-dys">{maskedSentence || 'Écris le mot :'}</p>
 
         {!resolved && (
@@ -286,7 +316,7 @@ export default function TestSessionPage() {
               </p>
             ) : (
               <>
-                <p className="form-error font-dys">😕 Ce n’était pas ça. Le mot était : {currentWord.text}</p>
+                <p className="form-error font-dys">😕 Aïe ! Le mot correct était : {currentWord.text}</p>
                 <div className="test-hint-illustration">
                   <IllustratedWordPreview text={currentWord.text} zones={currentWord.zones} />
                 </div>

@@ -111,4 +111,28 @@ const getPendingWords = async () => {
     return result.rows
 }
 
-module.exports = { createWord, getWords, updateWord, deleteWordFromBank, getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords }
+// Words an admin can meaningfully edit the sentence of: still in a bank
+// (common or private) or already used in a série even if since removed from
+// its owner's bank — excludes fully orphaned words nobody will ever see.
+const getWordsForSentenceEditing = async () => {
+    const result = await pool.query(
+        `SELECT id, text, sentence, zones, teacher_id, status
+        FROM words
+        WHERE in_bank = true OR id IN (SELECT word_id FROM series_words)
+        ORDER BY text ASC`
+    )
+    return result.rows
+}
+
+// Admin-only: updates just the sentence, unlike updateWord which always
+// overwrites zones too and is scoped to one teacher.
+const updateWordSentence = async (wordId, sentence) => {
+    const result = await pool.query(`
+        UPDATE words
+        SET sentence = $1
+        WHERE id = $2
+        RETURNING id, text, sentence`, [sentence, wordId])
+    return result.rows[0]
+}
+
+module.exports = { createWord, getWords, updateWord, deleteWordFromBank, getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords, getWordsForSentenceEditing, updateWordSentence }
