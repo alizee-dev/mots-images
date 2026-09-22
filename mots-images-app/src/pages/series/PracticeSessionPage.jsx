@@ -90,6 +90,21 @@ export default function PracticeSessionPage() {
   const LevelComponent = LEVEL_COMPONENTS[currentLevel]
   const needsAudio = currentLevel === 2 || currentLevel === 3
 
+  // Level 2 never shows the word as text or image on the first attempt —
+  // hearing it is the only way to know what to reconstruct, so it has to
+  // play on its own rather than wait for the child to think to tap the
+  // replay icon (see PracticeLevel2's own comment). Level 3 always shows a
+  // fill-in-the-blank sentence instead, so it stays click-to-hear only.
+  // Deliberately not on the retry (attemptNumber 1→2): the word must never
+  // be dictated automatically alongside the error message, only on request
+  // via the mascotte's icon.
+  useEffect(() => {
+    if (currentWord && currentLevel === 2) {
+      speakWord(currentWord.text)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWord?.id, currentLevel])
+
   // `resultsSoFar` is passed explicitly rather than read from the
   // `runResults` state closure — when this runs from inside a setTimeout
   // scheduled in the same handleAnswered call that just appended this
