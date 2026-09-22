@@ -57,9 +57,7 @@ Exact position of this/these letter(s) in the word: ${positions}
 Generate an illustration that strictly respects the 11 principles above for this specific word and letter(s), at the indicated position.
 Only ${letters} must be transformed or fused with a visual element. All OTHER letters in the word must remain in simple, plain black font, unmodified, exactly like the rest of the text — no color, no texture, no element drawn on or through them.
 
-## 5. Output format
-## 5. Output format
-## 5. Output format
+
 ## 5. Output format
 Style: contemporary folk children's book illustration with a strong mid-century / retro picture-book influence and a handmade sensibility — think gouache, screen-printing, or cut-paper collage aesthetics. Bold flat shapes, warm but vivid colors, organic and slightly irregular outlines (dark brown, maroon, or plum rather than pure black) — never a clean, glossy, digital 3D look. Use a limited, curated palette (roughly 5-9 dominant colors per image) combined thoughtfully rather than the most literal or expected color per element. Character and shape design is naive, expressive, and decorative, with charmingly imperfect, asymmetrical silhouettes — not photorealistic, not Disney-style, not kawaii. Faces are extremely simplified: small dot or oval eyes, minimal or absent nose, a small simple curved line for the mouth — never a detailed, realistic face. This applies equally to characters in action or motion, not only static portraits. Anatomy and proportions must remain correct and undistorted — never alter the real shape or structure of a body to fit the letter. The illustrated element should read as a single, isolated painted subject, not a full illustrated scene or storybook page. Plain white or very light background, no additional scenery, foliage, or environmental detail beyond what is strictly needed to form the letter itself.
 

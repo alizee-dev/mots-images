@@ -60,3 +60,35 @@ export function updateWordSentenceAsAdmin(wordId, sentence) {
 export function generateWordIllustration(wordId, letters, positions) {
   return apiFetch(`/words/${wordId}/generate-illustration`, { method: 'POST', body: { letters, positions } })
 }
+
+// None of the 3 AI proposals fit and the teacher doesn't want to illustrate
+// it manually either — flags the word for an admin to pick up by hand,
+// recording the same letters/positions already sent to generateWordIllustration,
+// plus the concept that attempt actually used (see generateWordIllustration's
+// own `concept` return value) so the admin can see and adjust it rather than
+// starting from a blank prompt.
+export function requestManualIllustration(wordId, letters, positions, concept) {
+  return apiFetch(`/words/${wordId}/request-manual-illustration`, {
+    method: 'POST',
+    body: { letters, positions, concept },
+  })
+}
+
+// Admin only — every word currently flagged for manual illustration help,
+// across all teachers.
+export function getIllustrationRequests() {
+  return apiFetch('/words/admin/illustration-requests')
+}
+
+// Admin only — generates a single illustration from a concept the admin
+// writes by hand, standing in for the AI-generated concept the normal flow
+// would have produced.
+export function generateAdminIllustration(wordId, concept) {
+  return apiFetch(`/words/${wordId}/admin/generate-illustration`, { method: 'POST', body: { concept } })
+}
+
+// Admin only — accepts a generated illustration, saving it as the word's
+// zones and clearing the pending request.
+export function acceptAdminIllustration(wordId, zones) {
+  return apiFetch(`/words/${wordId}/admin/illustration`, { method: 'PUT', body: { zones } })
+}

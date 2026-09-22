@@ -1,3 +1,5 @@
+import { v4 as uuid } from 'uuid'
+
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 const measureCtx = measureCanvas ? measureCanvas.getContext('2d') : null
 
@@ -128,6 +130,43 @@ export function computeWordBounds(text, zones, fontFamily, fontSize) {
 }
 
 export const DEFAULT_CROP = { x: 0, y: 0, width: 1, height: 1 }
+
+// Builds the single reserved "whole word" zone from a base64 PNG returned by
+// either illustration-generation endpoint — the teacher's 3 AI proposals
+// (WordEditorPage's applyAiProposal) or the admin's single manually-concepted
+// one — factored out here so both places build the exact same shape instead
+// of drifting apart.
+export function buildAiWholeWordZones(base64Image) {
+  const dataUrl = `data:image/png;base64,${base64Image}`
+  return new Promise((resolve) => {
+    const probe = new window.Image()
+    probe.onload = () => {
+      const image = {
+        id: uuid(),
+        type: 'image',
+        dataUrl,
+        aspect: probe.height / probe.width,
+        xFrac: 0.5,
+        yFrac: 0.5,
+        widthFrac: 1,
+        rotation: 0,
+        opacity: 1,
+        behind: false,
+        cropRect: DEFAULT_CROP,
+        cropPath: null,
+      }
+      resolve([
+        {
+          id: uuid(),
+          letterIndex: AI_WHOLE_WORD_LETTER_INDEX,
+          letterColor: null,
+          illustration: { strokes: [], stickers: [], images: [image] },
+        },
+      ])
+    }
+    probe.src = dataUrl
+  })
+}
 
 // Converts a crop expressed as fractions of an item's own bounding box into
 // Konva clip coordinates, in the item's local (centered, unrotated) space.

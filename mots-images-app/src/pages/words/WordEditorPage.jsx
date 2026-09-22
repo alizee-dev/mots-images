@@ -13,14 +13,15 @@ import {
   generateWordIllustration,
   getWords,
   removeWordFromBank,
+  requestManualIllustration,
   submitWordForCommonBank,
   updateWord,
 } from '../../api/words'
 import { addWordsToSeries } from '../../api/series'
 import {
   AI_WHOLE_WORD_LETTER_INDEX,
+  buildAiWholeWordZones,
   computeWordBounds,
-  DEFAULT_CROP,
   getAiWholeWordImage,
   LETTER_GAP_RATIO,
 } from '../../wordGeometry'
@@ -154,6 +155,16 @@ export default function WordEditorPage() {
   // separate from `mode`/`aiFlow`, just an overlay on top of the results
   // grid, closed by its own × back to the grid where "Choisir" still is.
   const [zoomedProposal, setZoomedProposal] = useState(null)
+  // The concept the last successful generation actually used — carried
+  // along in case the teacher ends up flagging this attempt for admin help,
+  // so the admin starts from what was tried rather than a blank field.
+  const [lastConcept, setLastConcept] = useState(null)
+  // Set once the teacher flags a word for an admin to illustrate by hand —
+  // replaces the results grid with a confirmation message instead of
+  // resetting straight back to the letter picker.
+  const [requestingHelp, setRequestingHelp] = useState(false)
+  const [requestHelpError, setRequestHelpError] = useState(null)
+  const [helpRequested, setHelpRequested] = useState(false)
 
   const loadedOnce = useRef(false)
   const editContainerRef = useRef(null)
@@ -175,6 +186,8 @@ export default function WordEditorPage() {
     setShowProposePrompt(false)
     setProposed(false)
     setProposeError(null)
+    setHelpRequested(false)
+    setRequestHelpError(null)
     getWords()
       .then((words) => {
         const found = words.find((w) => String(w.id) === wordId)
@@ -219,6 +232,16 @@ export default function WordEditorPage() {
     zonesForCleanupRef.current = zones
   }, [zones])
 
+  // Same reasoning again: a word just flagged for an admin's manual
+  // illustration help is, at that exact moment, still a bare word with zero
+  // zones — exactly the state the cleanup below normally treats as
+  // "abandoned, delete it." Without this, leaving right after flagging
+  // would soft-delete the word before the admin ever gets to see it.
+  const helpRequestedForCleanupRef = useRef(false)
+  useEffect(() => {
+    helpRequestedForCleanupRef.current = helpRequested
+  }, [helpRequested])
+
   // Leaving a word that was created solely to attempt an AI illustration,
   // without ever ending up with one — the 3 proposals were rejected, or the
   // parent simply navigated away mid-flow — used to leave a bare, useless
@@ -248,6 +271,7 @@ export default function WordEditorPage() {
     return () => {
       if (!autoAiForCleanupRef.current) return
       if (zonesForCleanupRef.current.length > 0) return
+      if (helpRequestedForCleanupRef.current) return
       setTimeout(() => {
         // generationsRef holds a plain Map, not a DOM node — safe to read
         // here regardless of what's changed elsewhere by the time this
@@ -503,8 +527,9 @@ export default function WordEditorPage() {
     setAiFlow('generating')
     setAiError(null)
     try {
-      const { illustrations } = await generateWordIllustration(wordId, letters, positions)
+      const { illustrations, concept } = await generateWordIllustration(wordId, letters, positions)
       setAiProposals(illustrations)
+      setLastConcept(concept || null)
       setAiFlow('results')
     } catch (err) {
       // Branches on the HTTP status (see client.js's statusError), not the
@@ -545,55 +570,29 @@ export default function WordEditorPage() {
   // à…" without saving first, anything else) away from being silently
   // discarded.
   const applyAiProposal = useCallback(
-    (proposal) => {
-      const dataUrl = `data:image/png;base64,${proposal.image}`
-      const probe = new window.Image()
-      probe.onload = async () => {
-        const image = {
-          id: uuid(),
-          type: 'image',
-          dataUrl,
-          aspect: probe.height / probe.width,
-          xFrac: 0.5,
-          yFrac: 0.5,
-          widthFrac: 1,
-          rotation: 0,
-          opacity: 1,
-          behind: false,
-          cropRect: DEFAULT_CROP,
-          cropPath: null,
-        }
-        const newZones = [
-          {
-            id: uuid(),
-            letterIndex: AI_WHOLE_WORD_LETTER_INDEX,
-            letterColor: null,
-            illustration: { strokes: [], stickers: [], images: [image] },
-          },
-        ]
-        setZones(newZones)
-        resetAiFlow()
+    async (proposal) => {
+      const newZones = await buildAiWholeWordZones(proposal.image)
+      setZones(newZones)
+      resetAiFlow()
 
-        setSaving(true)
-        setSaveError(null)
-        try {
-          const { zones: compressedZones } = await ensureZonesImagesAreCompressed(newZones, sentence)
-          setZones(compressedZones)
-          await updateWord(wordId, sentence, compressedZones)
-          setSavedSnapshot({ sentence, zones: compressedZones })
-          // Only offer to share it if there's actually something new to
-          // share — a word that's already pending/common doesn't need
-          // asking again.
-          if (wordStatus === 'private' || wordStatus == null) {
-            setShowProposePrompt(true)
-          }
-        } catch (err) {
-          setSaveError(err.message)
-        } finally {
-          setSaving(false)
+      setSaving(true)
+      setSaveError(null)
+      try {
+        const { zones: compressedZones } = await ensureZonesImagesAreCompressed(newZones, sentence)
+        setZones(compressedZones)
+        await updateWord(wordId, sentence, compressedZones)
+        setSavedSnapshot({ sentence, zones: compressedZones })
+        // Only offer to share it if there's actually something new to
+        // share — a word that's already pending/common doesn't need
+        // asking again.
+        if (wordStatus === 'private' || wordStatus == null) {
+          setShowProposePrompt(true)
         }
+      } catch (err) {
+        setSaveError(err.message)
+      } finally {
+        setSaving(false)
       }
-      probe.src = dataUrl
     },
     [resetAiFlow, wordId, sentence, wordStatus]
   )
@@ -624,6 +623,31 @@ export default function WordEditorPage() {
     resetAiFlow()
     openLetterZone(letterIndex)
   }, [aiSelectedIndices, resetAiFlow, openLetterZone])
+
+  // None of the 3 proposals fit and the teacher doesn't want to draw it by
+  // hand either — flags the word for an admin to illustrate later, using
+  // the same letters/positions already sent to generate these proposals.
+  // The word itself is left with zero zones until the admin follows up
+  // (see helpRequestedForCleanupRef, which keeps this from being cleaned
+  // up as an abandoned bare word in the meantime).
+  const handleRequestManualIllustration = useCallback(async () => {
+    const sortedIndices = [...aiSelectedIndices].sort((a, b) => a - b)
+    const chars = Array.from(wordText)
+    const letters = sortedIndices.map((i) => chars[i]).join('')
+    const positions = sortedIndices.map((i) => i + 1)
+    setRequestingHelp(true)
+    setRequestHelpError(null)
+    try {
+      await requestManualIllustration(wordId, letters, positions, lastConcept)
+      setHelpRequested(true)
+      setAiFlow(null)
+      setAiProposals([])
+    } catch (err) {
+      setRequestHelpError(err.message)
+    } finally {
+      setRequestingHelp(false)
+    }
+  }, [aiSelectedIndices, wordText, wordId, lastConcept])
 
   const saveZone = useCallback(
     (illustration, letterColor) => {
@@ -776,6 +800,19 @@ export default function WordEditorPage() {
       </div>
 
       <>
+        {helpRequested ? (
+          // Nothing else from this editing area makes sense to show anymore
+          // — the word has no illustration yet and won't until the admin
+          // follows up, so the letter tiles/picker would only be confusing
+          // clutter here. This message is the whole story for now.
+          <div className="propose-common-banner no-print">
+            <span>
+              Aïe ! L’IA n’a pas su illustrer le mot mais l’équipe a été prévenue. Le mot illustré sera ajouté à la
+              banque sous 24h.
+            </span>
+          </div>
+        ) : (
+          <>
           <p className="edit-instructions no-print">
             {aiFlow === 'selecting' &&
               "✨ Sélectionne une lettre, ou une plage de lettres consécutives, à illustrer avec l'IA (bêta)."}
@@ -888,7 +925,16 @@ export default function WordEditorPage() {
                   </div>
                 ))}
               </div>
+              {requestHelpError && <p className="form-error">{requestHelpError}</p>}
               <div className="app-header-actions">
+                <button
+                  type="button"
+                  className="btn btn-toggle active"
+                  onClick={handleRequestManualIllustration}
+                  disabled={requestingHelp}
+                >
+                  {requestingHelp ? 'Envoi…' : 'Aucune ne convient → demander à l’équipe'}
+                </button>
                 <button type="button" className="btn btn-secondary" onClick={rejectAiProposals}>
                   Aucune ne convient → éditer manuellement
                 </button>
@@ -928,7 +974,9 @@ export default function WordEditorPage() {
               ))}
             </div>
           )}
-        </>
+          </>
+        )}
+      </>
 
       {activeZone && (
         <IllustrationEditor

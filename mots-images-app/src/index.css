@@ -1657,6 +1657,30 @@ h3 {
   background: var(--color-surface);
 }
 
+/* Admin "Illustrations à faire" tab — a word a teacher flagged after none
+   of the 3 AI proposals fit, with a field for the admin's own hand-written
+   concept and a single generated preview (see .ai-proposal-card, reused
+   as-is for that preview card). */
+.admin-illustration-request-list {
+  align-items: stretch;
+}
+
+.admin-illustration-request-item {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  text-align: left;
+  background: var(--color-surface);
+}
+
+.admin-illustration-preview {
+  max-width: 260px;
+}
+
 /* AI illustration generation (beta) */
 .ai-results {
   display: flex;

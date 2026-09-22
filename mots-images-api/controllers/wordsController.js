@@ -4,7 +4,8 @@ const {
   updateWord,
   deleteWordFromBank,
   getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords,
-  getWordsForSentenceEditing, updateWordSentence
+  getWordsForSentenceEditing, updateWordSentence,
+  flagWordForIllustrationHelp, getWordsNeedingIllustrationHelp, resolveIllustrationHelp
 } = require("../models/wordModel")
 
 const {
@@ -199,7 +200,7 @@ const generateIllustrationController = async (req, res) => {
       }))
 
       await incrementAiGenerationsCount(teacherId)
-      res.status(200).json({ illustrations })
+      res.status(200).json({ illustrations, concept })
     } else {
       return res.status(429).json("Vous avez atteint la limite autorisée")
     }
@@ -307,6 +308,98 @@ const updateWordSentenceController = async (req, res) => {
   }
 }
 
+// A teacher flags a word whose AI illustration proposals didn't work out —
+// records the letters/positions they had selected so an admin can pick up
+// exactly where the AI attempt left off, without needing to ask the teacher
+// again.
+const requestManualIllustrationController = async (req, res) => {
+  const wordId = req.params.wordId
+  const teacherId = req.teacherId
+  const { letters, positions, concept } = req.body
+
+  try {
+    const word = await getWordById(wordId, teacherId)
+    if (!word) {
+      return res.status(403).json("Forbidden")
+    }
+
+    const updatedWord = await flagWordForIllustrationHelp(wordId, teacherId, letters, positions, concept)
+    res.status(200).json(updatedWord)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
+// Admin-only: every word currently flagged for manual illustration help,
+// across all teachers.
+const getIllustrationRequestsController = async (req, res) => {
+  try {
+    const words = await getWordsNeedingIllustrationHelp()
+    res.status(200).json(words)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
+// Admin-only: generates a single illustration proposal from a concept the
+// admin writes by hand, skipping the text-model concept step entirely (the
+// admin's text stands in for it directly in buildIllustrationPrompt) — the
+// letters/positions come from the word's own recorded request rather than
+// being re-sent by the admin.
+const generateAdminIllustrationController = async (req, res) => {
+  const wordId = req.params.wordId
+  const { concept } = req.body
+
+  try {
+    const word = await adminGetWords(wordId)
+    if (!word) {
+      return res.status(404).json("Word not found")
+    }
+
+    const positionsPrompt = getLettersPositions(word.illustration_request_positions)
+    const illustrationPrompt = buildIllustrationPrompt(word.text, word.illustration_request_letters, positionsPrompt, concept)
+
+    const styleReference = await toFile(
+      fs.readFileSync("./assets/palette-reference.png"), "palette-reference.png", { type: "image/png" }
+    )
+
+    const result = await openai.images.edit({
+      model: "gpt-image-2.5-flare",
+      image: styleReference,
+      prompt: illustrationPrompt,
+      n: 1,
+      quality: "high",
+    })
+
+    res.status(200).json({ illustration: { image: result.data[0].b64_json } })
+  } catch (error) {
+    if (error.name === "ValidationError") {
+      res.status(400).json(error.message)
+    } else {
+      res.status(500).json(error.message)
+    }
+  }
+}
+
+// Admin-only: accepts a generated (or otherwise supplied) illustration —
+// persists the zones built from it and clears the pending request.
+const acceptAdminIllustrationController = async (req, res) => {
+  const wordId = req.params.wordId
+  const { zones } = req.body
+
+  try {
+    const validWord = await adminGetWords(wordId)
+    if (!validWord) {
+      return res.status(404).json("Word not found")
+    }
+
+    const updatedWord = await resolveIllustrationHelp(wordId, JSON.stringify(zones))
+    res.status(200).json(updatedWord)
+  } catch (error) {
+    res.status(500).json(error.message)
+  }
+}
+
 module.exports = {
   createWordController,
   getWordsController,
@@ -316,5 +409,7 @@ module.exports = {
   setPendingStatusController,
   setCommonStatusController,
   setPrivateStatusController, getPendingWordsController,
-  getWordsForSentenceEditingController, updateWordSentenceController
+  getWordsForSentenceEditingController, updateWordSentenceController,
+  requestManualIllustrationController, getIllustrationRequestsController,
+  generateAdminIllustrationController, acceptAdminIllustrationController
 }

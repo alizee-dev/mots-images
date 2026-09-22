@@ -2,14 +2,19 @@ import { Fragment, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import {
+  acceptAdminIllustration,
   approveWord,
+  generateAdminIllustration,
+  getIllustrationRequests,
   getPendingWords,
   getWords,
   getWordsForSentenceEditing,
   rejectWord,
   updateWordSentenceAsAdmin,
 } from '../api/words'
+import { ensureZonesImagesAreCompressed } from '../imageCompression'
 import { maskWordInSentence } from '../practiceSentence'
+import { buildAiWholeWordZones } from '../wordGeometry'
 import IllustratedWordPreview from '../components/IllustratedWordPreview'
 import CheckIcon from '../components/CheckIcon'
 import CloseIcon from '../components/CloseIcon'
@@ -30,6 +35,14 @@ function getPageNumbers(current, total) {
   }
   if (total > 1) pages.push(total)
   return [...new Set(pages)].sort((a, b) => a - b)
+}
+
+// Positions are always a consecutive run (enforced server-side) — shown as
+// a range ("3-4") rather than every individual number.
+function formatPositions(positions) {
+  if (!positions || positions.length === 0) return ''
+  if (positions.length === 1) return `${positions[0]}`
+  return `${positions[0]}-${positions[positions.length - 1]}`
 }
 
 // Admin-only screen — reviewing words submitted by any teacher for the
@@ -79,6 +92,18 @@ export default function AdminPage() {
   const [drafts, setDrafts] = useState({})
   const [savingId, setSavingId] = useState(null)
 
+  // Words a teacher flagged after none of the 3 AI proposals worked out —
+  // `concepts` holds the admin's in-progress concept text per word id,
+  // `previews` the single generated image (base64) waiting to be accepted
+  // or regenerated with a revised concept.
+  const [illustrationRequests, setIllustrationRequests] = useState([])
+  const [illustrationLoading, setIllustrationLoading] = useState(true)
+  const [illustrationError, setIllustrationError] = useState(null)
+  const [concepts, setConcepts] = useState({})
+  const [previews, setPreviews] = useState({})
+  const [generatingId, setGeneratingId] = useState(null)
+  const [acceptingId, setAcceptingId] = useState(null)
+
   useEffect(() => {
     if (!isAdmin) return
     getPendingWords()
@@ -119,6 +144,20 @@ export default function AdminPage() {
   useEffect(() => {
     setSentencePage(1)
   }, [sentenceSearch])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    getIllustrationRequests()
+      .then((words) => {
+        setIllustrationRequests(words)
+        // Pre-fills each word's concept with whatever the failed AI attempt
+        // actually used (when one was captured) — the admin edits it from
+        // there instead of starting from a blank field.
+        setConcepts(Object.fromEntries(words.map((w) => [w.id, w.illustration_request_concept || ''])))
+      })
+      .catch((err) => setIllustrationError(err.message))
+      .finally(() => setIllustrationLoading(false))
+  }, [isAdmin])
 
   if (!isAdmin) return <Navigate to="/" replace />
 
@@ -168,6 +207,50 @@ export default function AdminPage() {
       setSentenceError(err.message)
     } finally {
       setSavingId(null)
+    }
+  }
+
+  // Generates one illustration from the admin's own hand-written concept —
+  // stores it as a preview rather than saving it immediately, since the
+  // admin still needs to look at it and decide.
+  const handleGenerateAdminIllustration = async (word) => {
+    const concept = (concepts[word.id] ?? '').trim()
+    if (!concept) return
+    setGeneratingId(word.id)
+    setIllustrationError(null)
+    try {
+      const { illustration } = await generateAdminIllustration(word.id, concept)
+      setPreviews((prev) => ({ ...prev, [word.id]: illustration.image }))
+    } catch (err) {
+      setIllustrationError(err.message)
+    } finally {
+      setGeneratingId(null)
+    }
+  }
+
+  // Accepting builds the same "whole word" zone shape the teacher-facing AI
+  // flow already uses (see WordEditorPage's applyAiProposal), then saves it
+  // and drops the word from this list — it no longer needs help.
+  const handleAcceptAdminIllustration = async (word) => {
+    setAcceptingId(word.id)
+    setIllustrationError(null)
+    try {
+      const zones = await buildAiWholeWordZones(previews[word.id])
+      // The raw generated PNG is far larger than the ~100KB PUT body limit
+      // (see imageCompression.js) — the same compression pass the teacher's
+      // own AI-proposal flow already runs before saving.
+      const { zones: compressedZones } = await ensureZonesImagesAreCompressed(zones)
+      await acceptAdminIllustration(word.id, compressedZones)
+      setIllustrationRequests((prev) => prev.filter((w) => w.id !== word.id))
+      setPreviews((prev) => {
+        const next = { ...prev }
+        delete next[word.id]
+        return next
+      })
+    } catch (err) {
+      setIllustrationError(err.message)
+    } finally {
+      setAcceptingId(null)
     }
   }
 
@@ -223,6 +306,13 @@ export default function AdminPage() {
           onClick={() => setTab('sentences')}
         >
           Phrases
+        </button>
+        <button
+          type="button"
+          className={`btn btn-tab ${tab === 'illustrations' ? 'active' : ''}`}
+          onClick={() => setTab('illustrations')}
+        >
+          Illustrations à faire
         </button>
       </div>
 
@@ -466,6 +556,69 @@ export default function AdminPage() {
                 →
               </button>
             </nav>
+          )}
+        </>
+      )}
+
+      {tab === 'illustrations' && (
+        <>
+          <p className="page-subtitle">Mots dont aucune proposition IA n’a convenu à l’enseignant</p>
+
+          {illustrationError && <p className="form-error">{illustrationError}</p>}
+          {illustrationLoading && <p>Chargement…</p>}
+
+          {!illustrationLoading && !illustrationError && illustrationRequests.length === 0 && (
+            <p className="empty-hint">Aucune demande en attente.</p>
+          )}
+
+          {illustrationRequests.length > 0 && (
+            <ul className="card-list admin-illustration-request-list">
+              {illustrationRequests.map((word) => (
+                <li key={word.id} className="admin-illustration-request-item">
+                  <div className="admin-sentence-meta">
+                    <strong>{word.text}</strong> — lettre(s) « {word.illustration_request_letters} », position{' '}
+                    {formatPositions(word.illustration_request_positions)}
+                  </div>
+
+                  <textarea
+                    className="word-input admin-sentence-input"
+                    rows={3}
+                    placeholder="Décris le concept d’illustration à proposer au modèle…"
+                    value={concepts[word.id] ?? ''}
+                    onChange={(e) => setConcepts((prev) => ({ ...prev, [word.id]: e.target.value }))}
+                  />
+
+                  <div className="app-header-actions">
+                    <button
+                      type="button"
+                      className="btn btn-toggle active"
+                      onClick={() => handleGenerateAdminIllustration(word)}
+                      disabled={generatingId === word.id || !(concepts[word.id] ?? '').trim()}
+                    >
+                      {generatingId === word.id ? 'Génération…' : previews[word.id] ? 'Régénérer' : 'Générer'}
+                    </button>
+                  </div>
+
+                  {previews[word.id] && (
+                    <div className="ai-proposal-card admin-illustration-preview">
+                      <img
+                        className="ai-proposal-image"
+                        src={`data:image/png;base64,${previews[word.id]}`}
+                        alt="Illustration générée par IA à partir du concept de l’admin"
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-toggle active"
+                        onClick={() => handleAcceptAdminIllustration(word)}
+                        disabled={acceptingId === word.id}
+                      >
+                        {acceptingId === word.id ? 'Enregistrement…' : 'Accepter'}
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}

@@ -85,7 +85,7 @@ const setPendingStatus = async (wordId, teacherId, status) => {
 
 const adminGetWords = async (wordId) => {
     const result = await pool.query(
-        `SELECT id, text, sentence, zones, teacher_id, status
+        `SELECT id, text, sentence, zones, teacher_id, status, needs_illustration_help, illustration_request_letters, illustration_request_positions, illustration_request_concept
         FROM words
         WHERE id = $1`, [wordId]
     )
@@ -135,4 +135,51 @@ const updateWordSentence = async (wordId, sentence) => {
     return result.rows[0]
 }
 
-module.exports = { createWord, getWords, updateWord, deleteWordFromBank, getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords, getWordsForSentenceEditing, updateWordSentence }
+// Teacher-scoped: flags a word as needing an admin's manual illustration
+// help, recording the letters/positions the teacher had selected, plus the
+// concept that attempt actually used (may be null if none was generated),
+// so the admin doesn't have to re-derive any of it from scratch.
+const flagWordForIllustrationHelp = async (wordId, teacherId, letters, positions, concept) => {
+    const result = await pool.query(`
+        UPDATE words
+        SET needs_illustration_help = true,
+            illustration_request_letters = $1,
+            illustration_request_positions = $2,
+            illustration_request_concept = $3
+        WHERE id = $4 AND teacher_id = $5
+        RETURNING id, needs_illustration_help`, [letters, JSON.stringify(positions), concept, wordId, teacherId])
+    return result.rows[0]
+}
+
+// Admin-only: every word currently flagged for manual illustration help,
+// across all teachers.
+const getWordsNeedingIllustrationHelp = async () => {
+    const result = await pool.query(
+        `SELECT id, text, teacher_id, illustration_request_letters, illustration_request_positions, illustration_request_concept
+        FROM words
+        WHERE needs_illustration_help = true
+        ORDER BY text ASC`
+    )
+    return result.rows
+}
+
+// Admin-only: persists the accepted illustration's zones and clears the
+// request, in one update — the word is no longer "needing help" once this
+// runs.
+const resolveIllustrationHelp = async (wordId, zones) => {
+    const result = await pool.query(`
+        UPDATE words
+        SET zones = $1,
+            needs_illustration_help = false,
+            illustration_request_letters = NULL,
+            illustration_request_positions = NULL,
+            illustration_request_concept = NULL
+        WHERE id = $2
+        RETURNING id, text, zones`, [zones, wordId])
+    return result.rows[0]
+}
+
+module.exports = {
+    createWord, getWords, updateWord, deleteWordFromBank, getWordById, setPendingStatus, adminGetWords, updateWordStatus, getPendingWords, getWordsForSentenceEditing, updateWordSentence,
+    flagWordForIllustrationHelp, getWordsNeedingIllustrationHelp, resolveIllustrationHelp,
+}
